@@ -42,45 +42,29 @@ int main(int argc, char *argv[])
 	TEEC_Session sess;
 	TEEC_Operation op = { 0 };
 	TEEC_UUID uuid = TA_HOTP_UUID;
-	uint8_t random_uuid[16] = { 0 };
 	uint32_t err_origin;
+
+	/* Shared key K */
+	uint8_t K[] = { "mysupersecretkey" };
 
 	/* Initialize a context connecting us to the TEE */
 	res = TEEC_InitializeContext(NULL, &ctx);
 	if (res != TEEC_SUCCESS)
 		errx(1, "TEEC_InitializeContext failed with code 0x%x", res);
 
-	/*
-	 * Open a session to the Random example TA, the TA will print "hello
-	 * world!" in the log when the session is created.
-	 */
 	res = TEEC_OpenSession(&ctx, &sess, &uuid,
 			       TEEC_LOGIN_PUBLIC, NULL, NULL, &err_origin);
 	if (res != TEEC_SUCCESS)
 		errx(1, "TEEC_Opensession failed with code 0x%x origin 0x%x",
-			res, err_origin);
+		     res, err_origin);
 
-	/*
-	 * Execute a function in the TA by invoking it, in this case
-	 * we're incrementing a number.
-	 *
-	 * The value of command ID part and how the parameters are
-	 * interpreted is part of the interface provided by the TA.
-	 */
-
-	/* Clear the TEEC_Operation struct */
-	memset(&op, 0, sizeof(op));
-
-	/*
-	 * Prepare the argument. Pass a value in the first parameter,
-	 * the remaining three parameters are unused.
-	 */
-	op.paramTypes = TEEC_PARAM_TYPES(TEEC_MEMREF_TEMP_OUTPUT,
+	/* 1. Send shared key */
+	op.paramTypes = TEEC_PARAM_TYPES(TEEC_MEMREF_TEMP_INOUT,
 					 TEEC_NONE, TEEC_NONE, TEEC_NONE);
-	op.params[0].tmpref.buffer = random_uuid;
-	op.params[0].tmpref.size = sizeof(random_uuid);
+	op.params[0].tmpref.buffer = K;
+	op.params[0].tmpref.size = sizeof(K);
 
-	printf("Sending the shared key\n");
+	fprintf(stdout, "Sending the shared key: %s\n", K);
 	res = TEEC_InvokeCommand(&sess, TA_HOTP_CMD_STORE_SHARED_KEY,
 				 &op, &err_origin);
 	if (res != TEEC_SUCCESS)
@@ -89,17 +73,22 @@ int main(int argc, char *argv[])
 
 	printf("TA generated UUID value = 0x");
 	for (int i = 0; i < 16; i++)
-		printf("%x", random_uuid[i]);
+		printf("%x", K[i]);
 	printf("\n");
 
-	/*
-	 * We're done with the TA, close the session and
-	 * destroy the context.
-	 *
-	 * The TA will print "Goodbye!" in the log when the
-	 * session is closed.
-	 */
+	/* 2. Get OTP */
+	op.paramTypes = TEEC_PARAM_TYPES(TEEC_NONE, TEEC_NONE, TEEC_NONE,
+					 TEEC_NONE);
+	op.params[0].tmpref.buffer = K;
+	op.params[0].tmpref.size = sizeof(K);
 
+	fprintf(stdout, "Get HOTP\n");
+	res = TEEC_InvokeCommand(&sess, TA_HOTP_CMD_GET_HOTP, &op, &err_origin);
+	if (res != TEEC_SUCCESS)
+		errx(1, "TEEC_InvokeCommand failed with code 0x%x origin 0x%x",
+			res, err_origin);
+
+	/* Close the ongoing session */
 	TEEC_CloseSession(&sess);
 
 	TEEC_FinalizeContext(&ctx);

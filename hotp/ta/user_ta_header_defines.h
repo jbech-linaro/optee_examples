@@ -25,29 +25,26 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-/*
- * The name of this file must not be modified
- */
-
+/* The name of this file must not be modified */
 #ifndef USER_TA_HEADER_DEFINES_H
 #define USER_TA_HEADER_DEFINES_H
 
  /* To get the TA_HOTP_EXAMPLE_UUID define */
 #include <hotp_ta.h>
 
-#define TA_UUID				TA_HOTP_UUID
+#define TA_UUID		TA_HOTP_UUID
 
 /*
- * TA properties: multi-instance TA, no specific attribute
- * TA_FLAG_EXEC_DDR is meaningless but mandated.
+ * We want to run this as a single instance TA.
+ * FIXME: We can change to multi later when storing the key in secure storage.
  */
-#define TA_FLAGS			TA_FLAG_EXEC_DDR
+#define TA_FLAGS	(TA_FLAG_EXEC_DDR | TA_FLAG_SINGLE_INSTANCE)
 
 /* Provisioned stack size */
-#define TA_STACK_SIZE			(2 * 1024)
+#define TA_STACK_SIZE	(2 * 1024)
 
 /* Provisioned heap size for TEE_Malloc() and friends */
-#define TA_DATA_SIZE			(32 * 1024)
+#define TA_DATA_SIZE	(32 * 1024)
 
 /* Extra properties (give a version id and a string name) */
 #define TA_CURRENT_TA_EXT_PROPERTIES \
@@ -55,4 +52,4 @@
       "HMAC-Based One-Time Password Algorithm (RFC4226)" }, \
     { "gp.ta.version", USER_TA_PROP_TYPE_U32, &(const uint32_t){ 0x0010 } }
 
-#endif /* USER_TA_HEADER_DEFINES_H */
+#endif

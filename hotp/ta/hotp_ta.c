@@ -27,8 +27,13 @@
 
 #include <tee_internal_api.h>
 #include <tee_internal_api_extensions.h>
+#include <string.h>
 
 #include <hotp_ta.h>
+
+#define MAX_KEY 256
+/* FIXME: Use this for now, remove later on when using secure storage */
+static uint8_t K[MAX_KEY];
 
 TEE_Result TA_CreateEntryPoint(void)
 {
@@ -65,50 +70,39 @@ void TA_CloseSessionEntryPoint(void __maybe_unused *sess_ctx)
 
 static TEE_Result store_shared_key(uint32_t param_types, TEE_Param params[4])
 {
-	uint32_t exp_param_types = TEE_PARAM_TYPES(TEE_PARAM_TYPE_MEMREF_OUTPUT,
+	uint32_t exp_param_types = TEE_PARAM_TYPES(TEE_PARAM_TYPE_MEMREF_INOUT,
 						   TEE_PARAM_TYPE_NONE,
 						   TEE_PARAM_TYPE_NONE,
 						   TEE_PARAM_TYPE_NONE);
 
 	DMSG("has been called");
-	if (param_types != exp_param_types)
+	if (param_types != exp_param_types) {
+		DMSG("Expected: 0x%x, got: 0x%x", exp_param_types, param_types);
 		return TEE_ERROR_BAD_PARAMETERS;
+	}
 
-	IMSG("Generating random data over %u bytes.", params[0].memref.size);
-	/*
-	 * The TEE_GenerateRandom function is a part of TEE Internal Core API,
-	 * which generates random data
-	 *
-	 * Parameters:
-	 * @ randomBuffer : Reference to generated random data
-	 * @ randomBufferLen : Byte length of requested random data
-	 */
-	TEE_GenerateRandom(params[0].memref.buffer, params[0].memref.size);
+	memcpy(K, params[0].memref.buffer, params[0].memref.size);
+	IMSG("Got shared key %s (%u bytes).", K, params[0].memref.size);
 
 	return TEE_SUCCESS;
 }
 
 static TEE_Result get_hotp(uint32_t param_types, TEE_Param params[4])
 {
-	uint32_t exp_param_types = TEE_PARAM_TYPES(TEE_PARAM_TYPE_MEMREF_OUTPUT,
+	uint32_t exp_param_types = TEE_PARAM_TYPES(TEE_PARAM_TYPE_NONE,
 						   TEE_PARAM_TYPE_NONE,
 						   TEE_PARAM_TYPE_NONE,
 						   TEE_PARAM_TYPE_NONE);
+	(void)params;
 
 	DMSG("has been called");
-	if (param_types != exp_param_types)
+	if (param_types != exp_param_types) {
+		DMSG("Expected: 0x%x, got: 0x%x", exp_param_types, param_types);
 		return TEE_ERROR_BAD_PARAMETERS;
+	}
 
-	IMSG("Generating random data over %u bytes.", params[0].memref.size);
-	/*
-	 * The TEE_GenerateRandom function is a part of TEE Internal Core API,
-	 * which generates random data
-	 *
-	 * Parameters:
-	 * @ randomBuffer : Reference to generated random data
-	 * @ randomBufferLen : Byte length of requested random data
-	 */
-	TEE_GenerateRandom(params[0].memref.buffer, params[0].memref.size);
+	IMSG("Get HOTP");
+	IMSG("K is still here: %s.", K);
 
 	return TEE_SUCCESS;
 }
