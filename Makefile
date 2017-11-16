@@ -5,6 +5,7 @@ OUTPUT_DIR := $(CURDIR)/out
 EXAMPLE_LIST := hello_world
 EXAMPLE_LIST += random
 EXAMPLE_LIST += aes
+EXAMPLE_LIST += hotp
 
 .PHONY: all
 all: examples prepare-for-rootfs
@@ -31,6 +32,7 @@ prepare-for-rootfs: examples
 		if [ -e $$example/host/optee_example_$$example ]; then \
 			cp -p $$example/host/optee_example_$$example $(OUTPUT_DIR)/ca/; \
 		fi; \
+		cp -pr hotp/host/hotp out/ca/; \
 		cp -pr $$example/ta/*.ta $(OUTPUT_DIR)/ta/; \
 	done
 
