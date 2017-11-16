@@ -66,7 +66,17 @@ void TA_CloseSessionEntryPoint(void __maybe_unused *sess_ctx)
 	(void)&sess_ctx;
 }
 
+static TEE_Result truncate(uint8_t *hmac_result, uint32_t *bin_code)
+{
+	int offset   =  hmac_result[19] & 0xf;
 
+	*bin_code = (hmac_result[offset] & 0x7f) << 24 |
+		(hmac_result[offset+1] & 0xff) << 16 |
+		(hmac_result[offset+2] & 0xff) <<  8 |
+		(hmac_result[offset+3] & 0xff);
+
+	return TEE_SUCCESS;
+}
 
 static TEE_Result store_shared_key(uint32_t param_types, TEE_Param params[4])
 {
