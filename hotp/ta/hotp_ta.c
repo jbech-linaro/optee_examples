@@ -100,6 +100,9 @@ static TEE_Result truncate(uint8_t *hmac_result, uint32_t *bin_code)
 		(hmac_result[offset+2] & 0xff) <<  8 |
 		(hmac_result[offset+3] & 0xff);
 
+	/* Mod 10^6 according to the spec to get a six digit HOTP */
+	*bin_code %= 1000000;
+
 	return TEE_SUCCESS;
 }
 
@@ -192,7 +195,7 @@ static TEE_Result get_hotp(uint32_t param_types, TEE_Param params[4])
 	(void)attr;
 #endif
 
-	truncate(K, &hotp_val);
+	truncate(mac, &hotp_val);
 
 	IMSG("Get HOTP");
 	IMSG("K is still here: %s.", K);
