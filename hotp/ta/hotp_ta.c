@@ -59,10 +59,10 @@ static uint8_t counter[] = { 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0 };
 
 static void hexdump(uint8_t *buf, size_t len)
 {
-	size_t i = 0;
+	uint8_t i = 0;
+	(void)buf;
 	for (i = 0; i < len; i++) {
-		printf("%02x", buf[i]);
-		i++;
+		printf("%02x ", buf[i]);
 	}
 	printf("\n");
 }
@@ -76,8 +76,10 @@ static TEE_Result hmac_sha1(uint8_t *K, const size_t K_len, uint8_t *C, uint8_t 
 
 	uint32_t mac_len = SHA1_SIZE;
 
-	if (K_len > MAX_KEY_SIZE)
+	if (K_len < MIN_KEY_SIZE || K_len > MAX_KEY_SIZE)
 		return TEE_ERROR_BAD_PARAMETERS;
+
+	DMSG("K_len: %d", K_len);
 
 	/*
 	 * 1. Allocate cryptographic (operation) handle for the HMAC operation.
@@ -107,7 +109,7 @@ static TEE_Result hmac_sha1(uint8_t *K, const size_t K_len, uint8_t *C, uint8_t 
 	TEE_MACInit(op_handle, NULL, 0);
 
 	/* 7. Update the HMAC operation */
-	TEE_MACUpdate(op_handle, &C, 1);
+	TEE_MACUpdate(op_handle, C, 8);
 
 	/* Finalize the HMAC operation */
 	CHECK_EXIT(TEE_MACComputeFinal(op_handle, NULL, 0, mac, &mac_len));
@@ -207,10 +209,9 @@ static TEE_Result get_hotp(uint32_t param_types, TEE_Param params[4])
 	if (!mac)
 		goto exit;
 
-	hmac_sha1(K_saved, K_len_saved, counter, mac);
-	/* DMSG("Current counter value: %d", counter); */
-
-	hexdump(mac, SHA1_SIZE);
+	CHECK_EXIT(hmac_sha1(K_saved, K_len_saved, counter, mac));
+	/* FIXME: Handle more than 255 values */
+	counter[7] += 1;
 
 	truncate(mac, &hotp_val);
 	IMSG("HOTP is: %d", hotp_val);

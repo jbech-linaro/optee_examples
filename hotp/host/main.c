@@ -46,7 +46,12 @@ int main(int argc, char *argv[])
 	uint32_t hotp_value = 0;
 
 	/* Shared key K, this is the key used RFC4226 - Test Vectors */
-	uint8_t K[] = { "12345678901234567890" };
+	// uint8_t K[] = { "12345678901234567890" };
+	uint8_t K[] = { 
+		0x31, 0x32, 0x33, 0x34, 0x35, 0x36, 0x37, 0x38,
+		0x39, 0x30, 0x31, 0x32, 0x33, 0x34, 0x35, 0x36,
+		0x37, 0x38, 0x39, 0x30
+	};
 
 	/* Initialize a context connecting us to the TEE */
 	res = TEEC_InitializeContext(NULL, &ctx);
@@ -63,7 +68,7 @@ int main(int argc, char *argv[])
 	op.paramTypes = TEEC_PARAM_TYPES(TEEC_MEMREF_TEMP_INOUT,
 					 TEEC_NONE, TEEC_NONE, TEEC_NONE);
 	op.params[0].tmpref.buffer = K;
-	op.params[0].tmpref.size = sizeof(K) - 1; /* Remove NULL character */
+	op.params[0].tmpref.size = sizeof(K);
 
 	fprintf(stdout, "Sending the shared key: %s\n", K);
 	res = TEEC_InvokeCommand(&sess, TA_HOTP_CMD_STORE_SHARED_KEY,
