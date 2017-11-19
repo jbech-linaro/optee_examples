@@ -31,9 +31,34 @@
 
 #include <hotp_ta.h>
 
-#define MAX_KEY 256
+
+/* This define uses the exit label and goes to that */
+#define CHECK_EXIT(ret_val) \
+	if (ret_val != TEE_SUCCESS) { \
+		EMSG("%s -> line: %03d", __FILE__, __LINE__); \
+		res = ret_val; \
+		goto exit; }
+
+/* This define uses the exit label and goes to that */
+#define CHECK_EXP_PARAM_EXIT(result_var, pt, ept) \
+	if (pt != ept) { \
+		DMSG("Expected: 0x%x, got: 0x%x (line: %03d)", ept, pt, __LINE__); \
+		result_var = TEE_ERROR_BAD_PARAMETERS; \
+		goto exit; }
+
+#define MAX_KEY_SIZE 64
 /* FIXME: Use this for now, remove later on when using secure storage */
-static uint8_t K[MAX_KEY];
+static uint8_t K[MAX_KEY_SIZE];
+
+static void hexdump(uint8_t *buf, size_t len)
+{
+	size_t i = 0;
+	for (i = 0; i < len; i++) {
+		printf("%02x", buf[i]);
+		i++;
+	}
+	printf("\n");
+}
 
 TEE_Result TA_CreateEntryPoint(void)
 {
@@ -80,25 +105,33 @@ static TEE_Result truncate(uint8_t *hmac_result, uint32_t *bin_code)
 
 static TEE_Result store_shared_key(uint32_t param_types, TEE_Param params[4])
 {
+	TEE_Result res = TEE_SUCCESS;
 	uint32_t exp_param_types = TEE_PARAM_TYPES(TEE_PARAM_TYPE_MEMREF_INOUT,
 						   TEE_PARAM_TYPE_NONE,
 						   TEE_PARAM_TYPE_NONE,
 						   TEE_PARAM_TYPE_NONE);
-
 	DMSG("has been called");
-	if (param_types != exp_param_types) {
-		DMSG("Expected: 0x%x, got: 0x%x", exp_param_types, param_types);
-		return TEE_ERROR_BAD_PARAMETERS;
-	}
+	CHECK_EXP_PARAM_EXIT(res, param_types, exp_param_types);
 
 	memcpy(K, params[0].memref.buffer, params[0].memref.size);
 	IMSG("Got shared key %s (%u bytes).", K, params[0].memref.size);
-
-	return TEE_SUCCESS;
+exit:
+	return res;
 }
 
 static TEE_Result get_hotp(uint32_t param_types, TEE_Param params[4])
 {
+	TEE_ObjectHandle key_handle = TEE_HANDLE_NULL;
+	TEE_OperationHandle op_handle = TEE_HANDLE_NULL;
+	TEE_Result res = TEE_SUCCESS;
+	TEE_ObjectInfo obj_info = { 0 };
+	TEE_Attribute attr;
+
+	uint8_t *mac;
+	uint32_t mac_len = 20;
+	uint32_t hotp_val = 0;
+	char const *counter = "abc";
+
 	uint32_t exp_param_types = TEE_PARAM_TYPES(TEE_PARAM_TYPE_NONE,
 						   TEE_PARAM_TYPE_NONE,
 						   TEE_PARAM_TYPE_NONE,
@@ -106,15 +139,76 @@ static TEE_Result get_hotp(uint32_t param_types, TEE_Param params[4])
 	(void)params;
 
 	DMSG("has been called");
-	if (param_types != exp_param_types) {
-		DMSG("Expected: 0x%x, got: 0x%x", exp_param_types, param_types);
-		return TEE_ERROR_BAD_PARAMETERS;
-	}
+	CHECK_EXP_PARAM_EXIT(res, param_types, exp_param_types);
+
+	/* 1. Allocate cryptographic (operation) handle for the HMAC operation */
+	CHECK_EXIT(TEE_AllocateOperation(&op_handle, TEE_ALG_HMAC_SHA1, TEE_MODE_MAC, MAX_KEY_SIZE * 8));
+
+	/* 2. Allocate a container (key handle) for the HMAC attributes */
+	CHECK_EXIT(TEE_AllocateTransientObject(TEE_TYPE_HMAC_SHA1, sizeof(K) * 8, &key_handle));
+
+	CHECK_EXIT(TEE_GenerateKey(key_handle, MAX_KEY_SIZE * 8, NULL, 0));
+
+	TEE_GetObjectInfo1(key_handle, &obj_info);
+	// FIXME: Remove this
+	DMSG("%s: maxObjectSize = (%08x) objectSize = (%08x).",
+            __func__, obj_info.maxObjectSize, obj_info.objectSize);
+
+	mac = TEE_Malloc(mac_len, 0);
+	if (!mac)
+		goto exit;
+
+#if 0
+	/* 3. Initialize the attributes, i.e., point to the actual key */
+	TEE_InitRefAttribute(&attr, TEE_ATTR_SECRET_VALUE, K, sizeof(K));
+
+	/* 4. Populate/assign the attributes */
+	CHECK_EXIT(TEE_PopulateTransientObject(key_handle, &attr, 1));
+#endif
+
+
+	// FIXME: object == 0?
+	/* 5. Associate the key (object) with the operation */
+	CHECK_EXIT(TEE_SetOperationKey(op_handle, key_handle));
+
+	/* FIXME: FreeTransient here? */
+
+	/* 6. Initialize the HMAC operation */
+	TEE_MACInit(op_handle, NULL, 0);
+
+	/* 7. Update the HMAC operation */
+	TEE_MACUpdate(op_handle, counter, 3);
+
+	/* Finalize the HMAC operation */
+	CHECK_EXIT(TEE_MACComputeFinal(op_handle, NULL, 0, mac, &mac_len));
+	DMSG("hmac len: %d", mac_len);
+
+	hexdump(mac, mac_len);
+#if 0
+#else
+	(void)counter;
+	(void)mac;
+	(void)mac_len;
+	(void)attr;
+#endif
+
+	truncate(K, &hotp_val);
 
 	IMSG("Get HOTP");
 	IMSG("K is still here: %s.", K);
+	IMSG("HOTP is: %d", hotp_val);
+exit:
+	if (op_handle != TEE_HANDLE_NULL)
+		TEE_FreeOperation(op_handle);
 
-	return TEE_SUCCESS;
+	if (key_handle != TEE_HANDLE_NULL)
+		TEE_FreeTransientObject(key_handle);
+
+	if (mac)
+		TEE_Free(mac);
+
+	DMSG("Done");
+	return res;
 }
 
 TEE_Result TA_InvokeCommandEntryPoint(void __maybe_unused *sess_ctx,

@@ -67,9 +67,11 @@ int main(int argc, char *argv[])
 	fprintf(stdout, "Sending the shared key: %s\n", K);
 	res = TEEC_InvokeCommand(&sess, TA_HOTP_CMD_STORE_SHARED_KEY,
 				 &op, &err_origin);
-	if (res != TEEC_SUCCESS)
-		errx(1, "TEEC_InvokeCommand failed with code 0x%x origin 0x%x",
+	if (res != TEEC_SUCCESS) {
+		fprintf(stderr, "TEEC_InvokeCommand failed with code 0x%x origin 0x%x",
 			res, err_origin);
+		goto exit;
+	}
 
 	printf("TA generated UUID value = 0x");
 	for (int i = 0; i < 16; i++)
@@ -84,10 +86,12 @@ int main(int argc, char *argv[])
 
 	fprintf(stdout, "Get HOTP\n");
 	res = TEEC_InvokeCommand(&sess, TA_HOTP_CMD_GET_HOTP, &op, &err_origin);
-	if (res != TEEC_SUCCESS)
-		errx(1, "TEEC_InvokeCommand failed with code 0x%x origin 0x%x",
+	if (res != TEEC_SUCCESS) {
+		fprintf(stderr, "TEEC_InvokeCommand failed with code 0x%x origin 0x%x",
 			res, err_origin);
-
+		goto exit;
+	}
+exit:
 	/* Close the ongoing session */
 	TEEC_CloseSession(&sess);
 
