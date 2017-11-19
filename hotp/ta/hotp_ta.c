@@ -46,8 +46,9 @@
 		result_var = TEE_ERROR_BAD_PARAMETERS; \
 		goto exit; }
 
+#define SHA1_SIZE 20
+
 #define MAX_KEY_SIZE 64
-/* FIXME: Use this for now, remove later on when using secure storage */
 static uint8_t K[MAX_KEY_SIZE];
 
 static void hexdump(uint8_t *buf, size_t len)
@@ -127,11 +128,10 @@ static TEE_Result get_hotp(uint32_t param_types, TEE_Param params[4])
 	TEE_ObjectHandle key_handle = TEE_HANDLE_NULL;
 	TEE_OperationHandle op_handle = TEE_HANDLE_NULL;
 	TEE_Result res = TEE_SUCCESS;
-	TEE_ObjectInfo obj_info = { 0 };
 	TEE_Attribute attr;
 
 	uint8_t *mac;
-	uint32_t mac_len = 20;
+	uint32_t mac_len = SHA1_SIZE;
 	uint32_t hotp_val = 0;
 	char const *counter = "abc";
 
@@ -150,31 +150,14 @@ static TEE_Result get_hotp(uint32_t param_types, TEE_Param params[4])
 	/* 2. Allocate a container (key handle) for the HMAC attributes */
 	CHECK_EXIT(TEE_AllocateTransientObject(TEE_TYPE_HMAC_SHA1, sizeof(K) * 8, &key_handle));
 
-	CHECK_EXIT(TEE_GenerateKey(key_handle, MAX_KEY_SIZE * 8, NULL, 0));
-
-	TEE_GetObjectInfo1(key_handle, &obj_info);
-	// FIXME: Remove this
-	DMSG("%s: maxObjectSize = (%08x) objectSize = (%08x).",
-            __func__, obj_info.maxObjectSize, obj_info.objectSize);
-
-	mac = TEE_Malloc(mac_len, 0);
-	if (!mac)
-		goto exit;
-
-#if 0
-	/* 3. Initialize the attributes, i.e., point to the actual key */
+	/* 3. Initialize the attributes, i.e., point to the actual HMAC key */
 	TEE_InitRefAttribute(&attr, TEE_ATTR_SECRET_VALUE, K, sizeof(K));
 
-	/* 4. Populate/assign the attributes */
+	/* 4. Populate/assign the attributes with the key object */
 	CHECK_EXIT(TEE_PopulateTransientObject(key_handle, &attr, 1));
-#endif
 
-
-	// FIXME: object == 0?
 	/* 5. Associate the key (object) with the operation */
 	CHECK_EXIT(TEE_SetOperationKey(op_handle, key_handle));
-
-	/* FIXME: FreeTransient here? */
 
 	/* 6. Initialize the HMAC operation */
 	TEE_MACInit(op_handle, NULL, 0);
@@ -182,18 +165,15 @@ static TEE_Result get_hotp(uint32_t param_types, TEE_Param params[4])
 	/* 7. Update the HMAC operation */
 	TEE_MACUpdate(op_handle, counter, 3);
 
+	mac = TEE_Malloc(mac_len, 0);
+	if (!mac)
+		goto exit;
+
 	/* Finalize the HMAC operation */
 	CHECK_EXIT(TEE_MACComputeFinal(op_handle, NULL, 0, mac, &mac_len));
 	DMSG("hmac len: %d", mac_len);
 
 	hexdump(mac, mac_len);
-#if 0
-#else
-	(void)counter;
-	(void)mac;
-	(void)mac_len;
-	(void)attr;
-#endif
 
 	truncate(mac, &hotp_val);
 
