@@ -45,8 +45,8 @@ int main(int argc, char *argv[])
 	uint32_t err_origin;
 	uint32_t hotp_value = 0;
 
-	/* Shared key K */
-	uint8_t K[] = { "mysupersecretkey" };
+	/* Shared key K, this is the key used RFC4226 - Test Vectors */
+	uint8_t K[] = { "12345678901234567890" };
 
 	/* Initialize a context connecting us to the TEE */
 	res = TEEC_InitializeContext(NULL, &ctx);
@@ -63,7 +63,7 @@ int main(int argc, char *argv[])
 	op.paramTypes = TEEC_PARAM_TYPES(TEEC_MEMREF_TEMP_INOUT,
 					 TEEC_NONE, TEEC_NONE, TEEC_NONE);
 	op.params[0].tmpref.buffer = K;
-	op.params[0].tmpref.size = sizeof(K);
+	op.params[0].tmpref.size = sizeof(K) - 1; /* Remove NULL character */
 
 	fprintf(stdout, "Sending the shared key: %s\n", K);
 	res = TEEC_InvokeCommand(&sess, TA_HOTP_CMD_STORE_SHARED_KEY,
@@ -74,15 +74,35 @@ int main(int argc, char *argv[])
 		goto exit;
 	}
 
-	printf("TA generated UUID value = 0x");
-	for (int i = 0; i < 16; i++)
-		printf("%x", K[i]);
-	printf("\n");
-
 	/* 2. Get OTP */
 	op.paramTypes = TEEC_PARAM_TYPES(TEEC_VALUE_OUTPUT, TEEC_NONE, TEEC_NONE,
 					 TEEC_NONE);
 
+	/* First */
+	fprintf(stdout, "Get HOTP\n");
+	res = TEEC_InvokeCommand(&sess, TA_HOTP_CMD_GET_HOTP, &op, &err_origin);
+	if (res != TEEC_SUCCESS) {
+		fprintf(stderr, "TEEC_InvokeCommand failed with code 0x%x origin 0x%x",
+			res, err_origin);
+		goto exit;
+	}
+
+	hotp_value = op.params[0].value.a;
+	fprintf(stdout, "HOTP: %d\n", hotp_value);
+
+	/* Second */
+	fprintf(stdout, "Get HOTP\n");
+	res = TEEC_InvokeCommand(&sess, TA_HOTP_CMD_GET_HOTP, &op, &err_origin);
+	if (res != TEEC_SUCCESS) {
+		fprintf(stderr, "TEEC_InvokeCommand failed with code 0x%x origin 0x%x",
+			res, err_origin);
+		goto exit;
+	}
+
+	hotp_value = op.params[0].value.a;
+	fprintf(stdout, "HOTP: %d\n", hotp_value);
+
+	/* Third */
 	fprintf(stdout, "Get HOTP\n");
 	res = TEEC_InvokeCommand(&sess, TA_HOTP_CMD_GET_HOTP, &op, &err_origin);
 	if (res != TEEC_SUCCESS) {

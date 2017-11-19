@@ -51,6 +51,8 @@
 #define MAX_KEY_SIZE 64
 static uint8_t K[MAX_KEY_SIZE];
 
+static uint32_t counter;
+
 static void hexdump(uint8_t *buf, size_t len)
 {
 	size_t i = 0;
@@ -117,8 +119,10 @@ static TEE_Result store_shared_key(uint32_t param_types, TEE_Param params[4])
 	DMSG("has been called");
 	CHECK_EXP_PARAM_EXIT(res, param_types, exp_param_types);
 
+	memset(K, 0, sizeof(K));
 	memcpy(K, params[0].memref.buffer, params[0].memref.size);
 	IMSG("Got shared key %s (%u bytes).", K, params[0].memref.size);
+	hexdump(K, sizeof(K));
 exit:
 	return res;
 }
@@ -133,7 +137,6 @@ static TEE_Result get_hotp(uint32_t param_types, TEE_Param params[4])
 	uint8_t *mac;
 	uint32_t mac_len = SHA1_SIZE;
 	uint32_t hotp_val = 0;
-	char const *counter = "abc";
 
 	uint32_t exp_param_types = TEE_PARAM_TYPES(TEE_PARAM_TYPE_VALUE_OUTPUT,
 						   TEE_PARAM_TYPE_NONE,
@@ -162,7 +165,9 @@ static TEE_Result get_hotp(uint32_t param_types, TEE_Param params[4])
 	TEE_MACInit(op_handle, NULL, 0);
 
 	/* 7. Update the HMAC operation */
-	TEE_MACUpdate(op_handle, counter, 3);
+	DMSG("Current counter value: %d", counter);
+	TEE_MACUpdate(op_handle, &counter, 1);
+	counter++;
 
 	mac = TEE_Malloc(mac_len, 0);
 	if (!mac)
@@ -175,9 +180,6 @@ static TEE_Result get_hotp(uint32_t param_types, TEE_Param params[4])
 	hexdump(mac, mac_len);
 
 	truncate(mac, &hotp_val);
-
-	IMSG("Get HOTP");
-	IMSG("K is still here: %s.", K);
 	IMSG("HOTP is: %d", hotp_val);
 	params[0].value.a = hotp_val;
 exit:
