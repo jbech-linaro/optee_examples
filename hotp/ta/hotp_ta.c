@@ -35,7 +35,7 @@
 /* This define uses the exit label and goes to that */
 #define CHECK_EXIT(ret_val) \
 	if (ret_val != TEE_SUCCESS) { \
-		EMSG("%s -> line: %03d", __FILE__, __LINE__); \
+		EMSG("0x%08x", ret_val); \
 		res = ret_val; \
 		goto exit; }
 
@@ -48,10 +48,14 @@
 
 #define SHA1_SIZE 20
 
-#define MAX_KEY_SIZE 64
-static uint8_t K[MAX_KEY_SIZE];
+/* GP says that for HMAC SHA-1, max is 512 bits and min 80 bits */
+#define MAX_KEY_SIZE 64 /* In bytes */
+#define MIN_KEY_SIZE 10 /* In bytes */
 
-static uint32_t counter;
+static uint8_t K_saved[MAX_KEY_SIZE];
+static uint32_t K_len_saved;
+
+static uint8_t counter[] = { 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0 };
 
 static void hexdump(uint8_t *buf, size_t len)
 {
@@ -61,6 +65,62 @@ static void hexdump(uint8_t *buf, size_t len)
 		i++;
 	}
 	printf("\n");
+}
+
+static TEE_Result hmac_sha1(uint8_t *K, const size_t K_len, uint8_t *C, uint8_t *mac)
+{
+	TEE_ObjectHandle key_handle = TEE_HANDLE_NULL;
+	TEE_OperationHandle op_handle = TEE_HANDLE_NULL;
+	TEE_Result res = TEE_SUCCESS;
+	TEE_Attribute attr;
+
+	uint32_t mac_len = SHA1_SIZE;
+
+	if (K_len > MAX_KEY_SIZE)
+		return TEE_ERROR_BAD_PARAMETERS;
+
+	/*
+	 * 1. Allocate cryptographic (operation) handle for the HMAC operation.
+	 *    Note that size here is in bits!
+	 */
+	CHECK_EXIT(TEE_AllocateOperation(&op_handle, TEE_ALG_HMAC_SHA1, TEE_MODE_MAC, K_len * 8));
+
+	/*
+	 * 2. Allocate a container (key handle) for the HMAC attributes. Note
+	 *    that size here is in bits!
+	 */
+	CHECK_EXIT(TEE_AllocateTransientObject(TEE_TYPE_HMAC_SHA1, K_len * 8, &key_handle));
+
+	/*
+	 * 3. Initialize the attributes, i.e., point to the actual HMAC key.
+	 *    Here, size is in bytes and not bits as above!
+	 */
+	TEE_InitRefAttribute(&attr, TEE_ATTR_SECRET_VALUE, K, K_len);
+
+	/* 4. Populate/assign the attributes with the key object */
+	CHECK_EXIT(TEE_PopulateTransientObject(key_handle, &attr, 1));
+
+	/* 5. Associate the key (object) with the operation */
+	CHECK_EXIT(TEE_SetOperationKey(op_handle, key_handle));
+
+	/* 6. Initialize the HMAC operation */
+	TEE_MACInit(op_handle, NULL, 0);
+
+	/* 7. Update the HMAC operation */
+	TEE_MACUpdate(op_handle, &C, 1);
+
+	/* Finalize the HMAC operation */
+	CHECK_EXIT(TEE_MACComputeFinal(op_handle, NULL, 0, mac, &mac_len));
+	DMSG("hmac len: %d", mac_len);
+	hexdump(mac, mac_len);
+exit:
+	if (op_handle != TEE_HANDLE_NULL)
+		TEE_FreeOperation(op_handle);
+
+	if (key_handle != TEE_HANDLE_NULL)
+		TEE_FreeTransientObject(key_handle);
+
+	return res;
 }
 
 TEE_Result TA_CreateEntryPoint(void)
@@ -119,23 +179,20 @@ static TEE_Result store_shared_key(uint32_t param_types, TEE_Param params[4])
 	DMSG("has been called");
 	CHECK_EXP_PARAM_EXIT(res, param_types, exp_param_types);
 
-	memset(K, 0, sizeof(K));
-	memcpy(K, params[0].memref.buffer, params[0].memref.size);
-	IMSG("Got shared key %s (%u bytes).", K, params[0].memref.size);
-	hexdump(K, sizeof(K));
+	memset(K_saved, 0, sizeof(K_saved));
+	memcpy(K_saved, params[0].memref.buffer, params[0].memref.size);
+	K_len_saved = params[0].memref.size;
+	IMSG("Got shared key %s (%u bytes).", K_saved, params[0].memref.size);
+	hexdump(K_saved, sizeof(K_saved));
 exit:
 	return res;
 }
 
 static TEE_Result get_hotp(uint32_t param_types, TEE_Param params[4])
 {
-	TEE_ObjectHandle key_handle = TEE_HANDLE_NULL;
-	TEE_OperationHandle op_handle = TEE_HANDLE_NULL;
 	TEE_Result res = TEE_SUCCESS;
-	TEE_Attribute attr;
 
-	uint8_t *mac;
-	uint32_t mac_len = SHA1_SIZE;
+	uint8_t *mac = NULL;
 	uint32_t hotp_val = 0;
 
 	uint32_t exp_param_types = TEE_PARAM_TYPES(TEE_PARAM_TYPE_VALUE_OUTPUT,
@@ -146,49 +203,19 @@ static TEE_Result get_hotp(uint32_t param_types, TEE_Param params[4])
 	DMSG("has been called");
 	CHECK_EXP_PARAM_EXIT(res, param_types, exp_param_types);
 
-	/* 1. Allocate cryptographic (operation) handle for the HMAC operation */
-	CHECK_EXIT(TEE_AllocateOperation(&op_handle, TEE_ALG_HMAC_SHA1, TEE_MODE_MAC, MAX_KEY_SIZE * 8));
-
-	/* 2. Allocate a container (key handle) for the HMAC attributes */
-	CHECK_EXIT(TEE_AllocateTransientObject(TEE_TYPE_HMAC_SHA1, sizeof(K) * 8, &key_handle));
-
-	/* 3. Initialize the attributes, i.e., point to the actual HMAC key */
-	TEE_InitRefAttribute(&attr, TEE_ATTR_SECRET_VALUE, K, sizeof(K));
-
-	/* 4. Populate/assign the attributes with the key object */
-	CHECK_EXIT(TEE_PopulateTransientObject(key_handle, &attr, 1));
-
-	/* 5. Associate the key (object) with the operation */
-	CHECK_EXIT(TEE_SetOperationKey(op_handle, key_handle));
-
-	/* 6. Initialize the HMAC operation */
-	TEE_MACInit(op_handle, NULL, 0);
-
-	/* 7. Update the HMAC operation */
-	DMSG("Current counter value: %d", counter);
-	TEE_MACUpdate(op_handle, &counter, 1);
-	counter++;
-
-	mac = TEE_Malloc(mac_len, 0);
+	mac = TEE_Malloc(SHA1_SIZE, 0);
 	if (!mac)
 		goto exit;
 
-	/* Finalize the HMAC operation */
-	CHECK_EXIT(TEE_MACComputeFinal(op_handle, NULL, 0, mac, &mac_len));
-	DMSG("hmac len: %d", mac_len);
+	hmac_sha1(K_saved, K_len_saved, counter, mac);
+	/* DMSG("Current counter value: %d", counter); */
 
-	hexdump(mac, mac_len);
+	hexdump(mac, SHA1_SIZE);
 
 	truncate(mac, &hotp_val);
 	IMSG("HOTP is: %d", hotp_val);
 	params[0].value.a = hotp_val;
 exit:
-	if (op_handle != TEE_HANDLE_NULL)
-		TEE_FreeOperation(op_handle);
-
-	if (key_handle != TEE_HANDLE_NULL)
-		TEE_FreeTransientObject(key_handle);
-
 	if (mac)
 		TEE_Free(mac);
 

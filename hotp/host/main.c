@@ -79,7 +79,6 @@ int main(int argc, char *argv[])
 					 TEEC_NONE);
 
 	/* First */
-	fprintf(stdout, "Get HOTP\n");
 	res = TEEC_InvokeCommand(&sess, TA_HOTP_CMD_GET_HOTP, &op, &err_origin);
 	if (res != TEEC_SUCCESS) {
 		fprintf(stderr, "TEEC_InvokeCommand failed with code 0x%x origin 0x%x",
@@ -91,7 +90,6 @@ int main(int argc, char *argv[])
 	fprintf(stdout, "HOTP: %d\n", hotp_value);
 
 	/* Second */
-	fprintf(stdout, "Get HOTP\n");
 	res = TEEC_InvokeCommand(&sess, TA_HOTP_CMD_GET_HOTP, &op, &err_origin);
 	if (res != TEEC_SUCCESS) {
 		fprintf(stderr, "TEEC_InvokeCommand failed with code 0x%x origin 0x%x",
@@ -103,7 +101,6 @@ int main(int argc, char *argv[])
 	fprintf(stdout, "HOTP: %d\n", hotp_value);
 
 	/* Third */
-	fprintf(stdout, "Get HOTP\n");
 	res = TEEC_InvokeCommand(&sess, TA_HOTP_CMD_GET_HOTP, &op, &err_origin);
 	if (res != TEEC_SUCCESS) {
 		fprintf(stderr, "TEEC_InvokeCommand failed with code 0x%x origin 0x%x",
