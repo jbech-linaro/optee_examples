@@ -43,6 +43,7 @@ int main(int argc, char *argv[])
 	TEEC_Operation op = { 0 };
 	TEEC_UUID uuid = TA_HOTP_UUID;
 	uint32_t err_origin;
+	uint32_t hotp_value = 0;
 
 	/* Shared key K */
 	uint8_t K[] = { "mysupersecretkey" };
@@ -79,10 +80,8 @@ int main(int argc, char *argv[])
 	printf("\n");
 
 	/* 2. Get OTP */
-	op.paramTypes = TEEC_PARAM_TYPES(TEEC_NONE, TEEC_NONE, TEEC_NONE,
+	op.paramTypes = TEEC_PARAM_TYPES(TEEC_VALUE_OUTPUT, TEEC_NONE, TEEC_NONE,
 					 TEEC_NONE);
-	op.params[0].tmpref.buffer = K;
-	op.params[0].tmpref.size = sizeof(K);
 
 	fprintf(stdout, "Get HOTP\n");
 	res = TEEC_InvokeCommand(&sess, TA_HOTP_CMD_GET_HOTP, &op, &err_origin);
@@ -91,10 +90,11 @@ int main(int argc, char *argv[])
 			res, err_origin);
 		goto exit;
 	}
-exit:
-	/* Close the ongoing session */
-	TEEC_CloseSession(&sess);
 
+	hotp_value = op.params[0].value.a;
+	fprintf(stdout, "HOTP: %d\n", hotp_value);
+exit:
+	TEEC_CloseSession(&sess);
 	TEEC_FinalizeContext(&ctx);
 
 	return 0;

@@ -135,11 +135,10 @@ static TEE_Result get_hotp(uint32_t param_types, TEE_Param params[4])
 	uint32_t hotp_val = 0;
 	char const *counter = "abc";
 
-	uint32_t exp_param_types = TEE_PARAM_TYPES(TEE_PARAM_TYPE_NONE,
+	uint32_t exp_param_types = TEE_PARAM_TYPES(TEE_PARAM_TYPE_VALUE_OUTPUT,
 						   TEE_PARAM_TYPE_NONE,
 						   TEE_PARAM_TYPE_NONE,
 						   TEE_PARAM_TYPE_NONE);
-	(void)params;
 
 	DMSG("has been called");
 	CHECK_EXP_PARAM_EXIT(res, param_types, exp_param_types);
@@ -180,6 +179,7 @@ static TEE_Result get_hotp(uint32_t param_types, TEE_Param params[4])
 	IMSG("Get HOTP");
 	IMSG("K is still here: %s.", K);
 	IMSG("HOTP is: %d", hotp_val);
+	params[0].value.a = hotp_val;
 exit:
 	if (op_handle != TEE_HANDLE_NULL)
 		TEE_FreeOperation(op_handle);
