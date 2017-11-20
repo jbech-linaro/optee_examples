@@ -9,7 +9,6 @@ GTAGS
 *.lds
 *.map
 *.o
-*.png
 *.swp
 *.ta
 cscope.*
