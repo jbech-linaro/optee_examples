@@ -65,7 +65,7 @@ int main(int argc, char *argv[])
 		     res, err_origin);
 
 	/* 1. Send shared key */
-	op.paramTypes = TEEC_PARAM_TYPES(TEEC_MEMREF_TEMP_INOUT,
+	op.paramTypes = TEEC_PARAM_TYPES(TEEC_MEMREF_TEMP_INPUT,
 					 TEEC_NONE, TEEC_NONE, TEEC_NONE);
 	op.params[0].tmpref.buffer = K;
 	op.params[0].tmpref.size = sizeof(K);
