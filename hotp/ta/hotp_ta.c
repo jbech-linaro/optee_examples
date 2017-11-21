@@ -52,10 +52,37 @@
 #define MAX_KEY_SIZE 64 /* In bytes */
 #define MIN_KEY_SIZE 10 /* In bytes */
 
+/* Dynamic Binary Code 2 Modulu, which is 10^6 according to the spec */
+#define DBC2_MODULU 1000000
+
 static uint8_t K_saved[MAX_KEY_SIZE];
 static uint32_t K_len_saved;
 
-static uint8_t counter[] = { 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0 };
+
+/*
+ * The HOTP counter should be a 8 byte array with where byte 0 is the MSB and
+ * byte 7 is the LSB. To make it easier to update the variable, just simply use
+ * a uint64_t instead. Since this will be in big endian, we need to swap it when
+ * incrementing.
+ */
+static uint64_t counter_be = 0;
+
+#define SWAP64(v) \
+	(((uint64_t)(v) << 56) | \
+	 (((uint64_t)(v) & 0x000000000000FF00) << 40) | \
+	 (((uint64_t)(v) & 0x0000000000FF0000) << 24) | \
+	 (((uint64_t)(v) & 0x00000000FF000000) << 8) | \
+	 (((uint64_t)(v) & 0x000000FF00000000) >> 8) | \
+	 (((uint64_t)(v) & 0x0000FF0000000000) >> 24)| \
+	 (((uint64_t)(v) & 0x00FF000000000000) >> 40)| \
+	 ((uint64_t)(v) >> 56))
+
+static void inc_counter(uint64_t *c_be)
+{
+	uint64_t c_le = SWAP64(*c_be);
+	c_le++;
+	*c_be = SWAP64(c_le);
+}
 
 static void hexdump(uint8_t *buf, size_t len)
 {
@@ -165,8 +192,7 @@ static TEE_Result truncate(uint8_t *hmac_result, uint32_t *bin_code)
 		(hmac_result[offset+2] & 0xff) <<  8 |
 		(hmac_result[offset+3] & 0xff);
 
-	/* Mod 10^6 according to the spec to get a six digit HOTP */
-	*bin_code %= 1000000;
+	*bin_code %= DBC2_MODULU;
 
 	return TEE_SUCCESS;
 }
@@ -209,9 +235,10 @@ static TEE_Result get_hotp(uint32_t param_types, TEE_Param params[4])
 	if (!mac)
 		goto exit;
 
-	CHECK_EXIT(hmac_sha1(K_saved, K_len_saved, counter, mac));
+	CHECK_EXIT(hmac_sha1(K_saved, K_len_saved, (uint8_t *)&counter_be, mac));
 	/* FIXME: Handle more than 255 values */
-	counter[7] += 1;
+	inc_counter(&counter_be);
+	hexdump((uint8_t *)&counter_be, 8);
 
 	truncate(mac, &hotp_val);
 	IMSG("HOTP is: %d", hotp_val);
