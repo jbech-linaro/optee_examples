@@ -41,7 +41,7 @@ static uint8_t counter[] = { 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0 };
  */
 static TEE_Result hmac_sha1(const uint8_t *key, const size_t keylen,
 			    const uint8_t *in, const size_t inlen,
-			    uint8_t *out, uint32_t *outlen)
+			    uint8_t *out, uint32_t outlen)
 {
 	TEE_Attribute attr = { 0 };
 	TEE_ObjectHandle key_handle = TEE_HANDLE_NULL;
@@ -51,7 +51,7 @@ static TEE_Result hmac_sha1(const uint8_t *key, const size_t keylen,
 	if (keylen < MIN_KEY_SIZE || keylen > MAX_KEY_SIZE)
 		return TEE_ERROR_BAD_PARAMETERS;
 
-	if (!in || !out || !outlen)
+	if (!in || !out)
 		return TEE_ERROR_BAD_PARAMETERS;
 
 	/*
@@ -100,7 +100,7 @@ static TEE_Result hmac_sha1(const uint8_t *key, const size_t keylen,
 	/* 6. Do the HMAC operations */
 	TEE_MACInit(op_handle, NULL, 0);
 	TEE_MACUpdate(op_handle, in, inlen);
-	res = TEE_MACComputeFinal(op_handle, NULL, 0, out, outlen);
+	res = TEE_MACCompareFinal(op_handle, NULL, 0, out, outlen);
 exit:
 	if (op_handle != TEE_HANDLE_NULL)
 		TEE_FreeOperation(op_handle);
@@ -109,21 +109,6 @@ exit:
 	TEE_FreeTransientObject(key_handle);
 
 	return res;
-}
-
-/*
- * Truncate function working as described in RFC4226.
- */
-static void truncate(uint8_t *hmac_result, uint32_t *bin_code)
-{
-	int offset = hmac_result[19] & 0xf;
-
-	*bin_code = (hmac_result[offset] & 0x7f) << 24 |
-		(hmac_result[offset+1] & 0xff) << 16 |
-		(hmac_result[offset+2] & 0xff) <<  8 |
-		(hmac_result[offset+3] & 0xff);
-
-	*bin_code %= DBC2_MODULO;
 }
 
 static TEE_Result register_shared_key(uint32_t param_types, TEE_Param params[4])
@@ -152,12 +137,9 @@ static TEE_Result register_shared_key(uint32_t param_types, TEE_Param params[4])
 static TEE_Result get_hotp(uint32_t param_types, TEE_Param params[4])
 {
 	TEE_Result res = TEE_SUCCESS;
-	uint32_t hotp_val;
-	uint8_t mac[SHA1_HASH_SIZE];
-	uint32_t mac_len = sizeof(mac);
-	int i;
+	uint8_t test_mac[SHA1_HASH_SIZE] = { 0 };
 
-	uint32_t exp_param_types = TEE_PARAM_TYPES(TEE_PARAM_TYPE_VALUE_OUTPUT,
+	uint32_t exp_param_types = TEE_PARAM_TYPES(TEE_PARAM_TYPE_MEMREF_INPUT,
 						   TEE_PARAM_TYPE_NONE,
 						   TEE_PARAM_TYPE_NONE,
 						   TEE_PARAM_TYPE_NONE);
@@ -167,18 +149,18 @@ static TEE_Result get_hotp(uint32_t param_types, TEE_Param params[4])
 		return TEE_ERROR_BAD_PARAMETERS;
 	}
 
-	res = hmac_sha1(K, K_len, counter, sizeof(counter), mac, &mac_len);
+	memcpy(test_mac, params[0].memref.buffer, params[0].memref.size);
 
+	res = hmac_sha1(K, K_len, counter, sizeof(counter), test_mac, SHA1_HASH_SIZE);
+	DMSG("0x%08x", res);
+
+#if 0
 	/* Increment the counter. */
 	for (i = sizeof(counter) - 1; i >= 0; i--) {
 		if (++counter[i])
 			break;
 	}
-
-	truncate(mac, &hotp_val);
-	DMSG("HOTP is: %d", hotp_val);
-	params[0].value.a = hotp_val;
-
+#endif
 	return res;
 }
 

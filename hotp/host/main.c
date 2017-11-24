@@ -8,6 +8,8 @@
 #include <err.h>
 #include <stdio.h>
 #include <string.h>
+#include <time.h>
+#include <float.h>
 
 /* OP-TEE TEE client API (built by optee_client) */
 #include <tee_client_api.h>
@@ -36,6 +38,12 @@ struct test_value rfc4226_test_values[] = {
 	{ 9, 520489 }
 };
 
+void roll_avg(double *avg, double new_sample, uint32_t N)
+{
+	*avg -= *avg / N;
+	*avg += new_sample / N;
+}
+
 int main(int argc, char *argv[])
 {
 	TEEC_Context ctx;
@@ -44,9 +52,24 @@ int main(int argc, char *argv[])
 	TEEC_Session sess;
 	TEEC_UUID uuid = TA_HOTP_UUID;
 
-	int i;
 	uint32_t err_origin;
-	uint32_t hotp_value;
+	struct timespec start, stop;
+	double accum, min = DBL_MAX, max = 0, avg = 0;
+	int min_pos = 0, max_pos = 0;
+
+#if 0
+	uint8_t correct[] = {
+		0xcc, 0x93, 0xcf, 0x18,   0x50, 0x8d, 0x94, 0x93,
+		0x4c, 0x64, 0xb6, 0x5d,   0x8b, 0xa7, 0x66, 0x7f,
+		0xb7, 0xcd, 0xe4, 0xb0
+	};
+#endif
+	uint8_t correct[] = {
+		0xcc, 0x93, 0xcf, 0x18,   0x50, 0x8d, 0x94, 0x93,
+		0x4c, 0x64, 0xb6, 0x5d,   0x8b, 0xa7, 0x66, 0x7f,
+		0xb7, 0xcd, 0xe4, 0xb0
+	};
+
 
 	/*
 	 * Shared key K ("12345678901234567890"), this is the key used in
@@ -86,28 +109,42 @@ int main(int argc, char *argv[])
 	}
 
 	/* 2. Get HMAC based One Time Passwords */
-	op.paramTypes = TEEC_PARAM_TYPES(TEEC_VALUE_OUTPUT, TEEC_NONE,
+	op.paramTypes = TEEC_PARAM_TYPES(TEEC_MEMREF_TEMP_INPUT, TEEC_NONE,
 					 TEEC_NONE, TEEC_NONE);
 
-	for (i = 0; i < sizeof(rfc4226_test_values) / sizeof(struct test_value);
-	     i++) {
+	op.params[0].tmpref.buffer = correct;
+	op.params[0].tmpref.size = sizeof(correct);
+	for (int k = 0; k < 10000; k++) {
+		clock_gettime( CLOCK_REALTIME, &start);
 		res = TEEC_InvokeCommand(&sess, TA_HOTP_CMD_GET_HOTP, &op,
 					 &err_origin);
+		clock_gettime( CLOCK_REALTIME, &stop);
+		accum = ( stop.tv_sec - start.tv_sec ) + ( stop.tv_nsec - start.tv_nsec );
+		if (accum < 900000 || accum > 2000000)
+			continue;
+
+		if (accum < min) {
+			min = accum;
+			min_pos = k;
+		}
+
+		if (accum > max) {
+			max = accum;
+			max_pos = k;
+		}
+
+		roll_avg(&avg, accum, 500);
+		
+		fprintf(stdout, "cur: %lf, min: %lf, max: %lf, avg: %lf\n", accum, min, max, avg);
+#if 0
 		if (res != TEEC_SUCCESS) {
 			fprintf(stderr, "TEEC_InvokeCommand failed with code "
 				"0x%x origin 0x%x\n", res, err_origin);
 			goto exit;
 		}
-
-		hotp_value = op.params[0].value.a;
-		fprintf(stdout, "HOTP: %d\n", hotp_value);
-
-		if (hotp_value != rfc4226_test_values[i].expected) {
-			fprintf(stderr, "Got unexpected HOTP from TEE! "
-				"Expected: %d, got: %d\n",
-				rfc4226_test_values[i].expected, hotp_value);
-		}
+#endif
 	}
+	fprintf(stdout, "cur: %lf, min[%d]: ---, max[%d] ---, avg: %lf\n", accum, min_pos, max_pos, avg);
 exit:
 	TEEC_CloseSession(&sess);
 	TEEC_FinalizeContext(&ctx);
