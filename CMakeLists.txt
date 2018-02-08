@@ -31,3 +31,6 @@ foreach(dir ${dirs})
 		add_subdirectory(${dir})
 	endif()
 endforeach()
+
+# Note that this introduces a hard path dependency to optee_client
+add_subdirectory(../optee_client optee_client)
