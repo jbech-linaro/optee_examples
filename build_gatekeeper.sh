@@ -24,12 +24,12 @@ export PLATFORM_FLAVOR=qemu_virt
 export CROSS_COMPILE=arm-linux-gnueabihf-
 
 # Build the host application
-cd $CURDIR/aes-cbc-mac/host
+cd $CURDIR/gatekeeper/host
 echo $PATH
 remake CROSS_COMPILE=${CROSS_COMPILE} $@
 
 # Toolchain prefix for the Trusted Applications
 TA_CROSS_COMPILE=arm-linux-gnueabihf-
 # Build the Trusted Application
-cd $CURDIR/aes-cbc-mac/ta
+cd $CURDIR/gatekeeper/ta
 remake CROSS_COMPILE=${CROSS_COMPILE} $@
