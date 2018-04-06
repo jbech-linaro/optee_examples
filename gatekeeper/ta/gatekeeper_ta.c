@@ -4,7 +4,7 @@
  *
  * SPDX-License-Identifier: BSD-2-Clause
  */
-#include <aes-cbc-mac_ta.h>
+#include <gatekeeper_ta.h>
 #include <string.h>
 #include <tee_internal_api_extensions.h>
 #include <tee_internal_api.h>

@@ -1,2 +1,2 @@
 global-incdirs-y += include
-srcs-y += aes-cbc-mac_ta.c
+srcs-y += gatekeeper_ta.c

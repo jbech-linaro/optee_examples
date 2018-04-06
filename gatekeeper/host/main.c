@@ -10,7 +10,7 @@
 #include <string.h>
 
 #include <tee_client_api.h>
-#include <aes-cbc-mac_ta.h>
+#include <gatekeeper_ta.h>
 
 int main(int argc, char *argv[])
 {
@@ -18,7 +18,7 @@ int main(int argc, char *argv[])
 	TEEC_Operation op = { 0 };
 	TEEC_Result res;
 	TEEC_Session sess;
-	TEEC_UUID uuid = TA_AES_CBC_MAC_UUID;
+	TEEC_UUID uuid = TA_GATEKEEPER_UUID;
 
 	uint32_t err_origin;
 
