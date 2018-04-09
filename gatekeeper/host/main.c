@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017, Linaro Limited
+ * Copyright (c) 2018, Linaro Limited
  * All rights reserved.
  *
  * SPDX-License-Identifier: BSD-2-Clause
@@ -36,7 +36,7 @@ int main(int argc, char *argv[])
 	op.paramTypes = TEEC_PARAM_TYPES(TEEC_NONE, TEEC_NONE, TEEC_NONE,
 					 TEEC_NONE);
 
-	res = TEEC_InvokeCommand(&sess, TA_AES_CBC_MAC_CMD_RUN,
+	res = TEEC_InvokeCommand(&sess, TA_GATEKEEPER_ENROLL,
 				 &op, &err_origin);
 	if (res != TEEC_SUCCESS)
 		fprintf(stderr, "TEEC_InvokeCommand failed with code 0x%x "

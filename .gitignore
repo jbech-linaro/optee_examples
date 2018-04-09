@@ -13,4 +13,4 @@ GTAGS
 *.ta
 cscope.*
 out/
-aes-cbc-mac/host/optee_example_aes-cbc-mac
+gatekeeper/host/optee_example_gatekeeper

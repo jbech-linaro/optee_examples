@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017, Linaro Limited
+ * Copyright (c) 2018, Linaro Limited
  * All rights reserved.
  *
  * SPDX-License-Identifier: BSD-2-Clause
@@ -9,7 +9,7 @@
 #include <tee_internal_api_extensions.h>
 #include <tee_internal_api.h>
 
-static TEE_Result aes_cbc_mac(uint32_t __unused param_types, TEE_Param __unused params[4])
+static TEE_Result enroll(uint32_t __unused param_types, TEE_Param __unused params[4])
 {
 	TEE_Result res = TEE_SUCCESS;
 
@@ -61,8 +61,8 @@ TEE_Result TA_InvokeCommandEntryPoint(void __unused *sess_ctx,
 				      uint32_t param_types, TEE_Param params[4])
 {
 	switch (cmd_id) {
-	case TA_AES_CBC_MAC_CMD_RUN:
-		return aes_cbc_mac(param_types, params);
+	case TA_GATEKEEPER_ENROLL:
+		return enroll(param_types, params);
 
 	default:
 		return TEE_ERROR_BAD_PARAMETERS;
