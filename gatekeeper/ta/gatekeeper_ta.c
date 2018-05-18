@@ -47,11 +47,13 @@ static void ComputePasswordSignature(
 	(void)salt;
 }
 
+/**
+ * Retrieves a unique, cryptographically randomly generated buffer for use in
+ * password hashing, etc.
+ */
 static void GetRandom(void *random, uint32_t requested_size)
 {
-	// FIXME: Implementation
-	(void)random;
-	(void)requested_size;
+	TEE_GenerateRandom(random, requested_size);
 }
 
 static void ComputeSignature(uint8_t *signature, uint32_t signature_length,
