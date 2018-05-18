@@ -10,6 +10,8 @@
 #include <tee_internal_api.h>
 
 #define DAY_IN_MS (1000 * 60 * 60 * 24)
+#define MS_PER_S 1000
+
 /*******************************************************************************
  * Protected functions in the gatekeeper.h in AOSP
  ******************************************************************************/
@@ -69,10 +71,17 @@ static void ComputeSignature(uint8_t *signature, uint32_t signature_length,
 	(void)length;
 }
 
+/**
+ * Get the time since boot in milliseconds.
+ *
+ * Should return 0 on error.
+ */
 static uint64_t GetMillisecondsSinceBoot(void)
 {
-	// FIXME: Implementation
-	return 0;
+	TEE_Time time;
+	TEE_GetSystemTime(&time);
+
+	return (time.seconds * MS_PER_S) + time.millis;
 }
 
 // FIXME: Implement secure_id_t
