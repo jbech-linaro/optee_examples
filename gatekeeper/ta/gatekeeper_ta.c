@@ -84,21 +84,41 @@ static uint64_t GetMillisecondsSinceBoot(void)
 	return (time.seconds * MS_PER_S) + time.millis;
 }
 
-// FIXME: Implement secure_id_t
-typedef int secure_id_t;
-
-// FIXME: Implement failure_record_t
-typedef int failure_record_t;
-
 static bool GetFailureRecord(uint32_t uid, secure_id_t user_id,
-			     failure_record_t *record, bool secure)
+			     struct failure_record_t *record, bool secure)
 {
-	// FIXME: Implementation
-	(void)uid;
-	(void)user_id;
-	(void)record;
+	char object_id[STORAGE_ID_LENGTH_MAX] = { 0 };
+	struct failure_record_t owner_record;
+	TEE_ObjectHandle obj_handle = TEE_HANDLE_NULL;
+	TEE_Result res = TEE_ERROR_GENERIC;
+	uint32_t count;
+	uint32_t flags = TEE_DATA_FLAG_ACCESS_READ;
+
+	/* TODO: what about bool secure, we are always secure? */
 	(void)secure;
-	return false;
+
+	snprintf(object_id, STORAGE_ID_LENGTH_MAX, GATEKEEPER_PREFIX "%u",
+		 uid);
+
+	/* TODO: Consider use TEE_STORAGE_PRIVATE_RPMB instead */
+	res = TEE_OpenPersistentObject(TEE_STORAGE_PRIVATE,
+				       &object_id, sizeof(object_id),
+				       flags, &obj_handle);
+	if (res != TEE_SUCCESS)
+		return false;
+
+	res = TEE_ReadObjectData(obj_handle, &owner_record,
+				 sizeof(struct failure_record_t),
+				 &count);
+
+	if (res != TEE_SUCCESS || count != sizeof(struct failure_record_t))
+		return false;
+
+	if (owner_record.secure_user_id != user_id)
+		return false;
+
+	*record = owner_record;
+	return true;
 }
 
 static bool ClearFailureRecord(uint32_t uid, secure_id_t user_id, bool secure)
@@ -110,7 +130,7 @@ static bool ClearFailureRecord(uint32_t uid, secure_id_t user_id, bool secure)
 	return false;
 }
 
-static uint32_t ComputeRetryTimeout(const failure_record_t *record)
+static uint32_t ComputeRetryTimeout(const struct failure_record_t *record)
 {
 	// FIXME: Implementation
 	(void)record;
@@ -170,7 +190,7 @@ static bool CreatePasswordHandle(
 }
 
 static bool IncrementFailureRecord(uint32_t uid, secure_id_t user_id, uint64_t timestamp,
-				   failure_record_t *record, bool secure)
+				   struct failure_record_t *record, bool secure)
 {
 	// FIXME: Implementation
 	(void)uid;
@@ -185,7 +205,7 @@ static bool IncrementFailureRecord(uint32_t uid, secure_id_t user_id, uint64_t t
 typedef uint8_t GateKeeperMessage;
 
 static bool ThrottleRequest(uint32_t uid, uint64_t timestamp,
-			    failure_record_t *record,
+			    struct failure_record_t *record,
 			    bool secure, GateKeeperMessage *response)
 {
 	// FIXME: Implementation
