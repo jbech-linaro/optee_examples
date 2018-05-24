@@ -30,9 +30,6 @@ static void GetPasswordKey(const uint8_t **password_key, uint32_t *length)
 	(void)length;
 }
 
-// FIXME: Implement salt_t
-typedef int salt_t;
-
 static void ComputePasswordSignature(
 	uint8_t *signature, uint32_t signature_length,
 	const uint8_t *key, uint32_t key_length,
@@ -41,7 +38,7 @@ static void ComputePasswordSignature(
 {
 	// FIXME: Implementation
 	(void)signature;
-	(void)signature_length;
+(void)signature_length;
 	(void)key;
 	(void)key_length;
 	(void)password;
@@ -142,13 +139,10 @@ static bool IsHardwareBacked(void)
 	return true;
 }
 
-// FIXME: Implement password_handle_t
-typedef uint32_t password_handle_t;
-
 // FIXME: Implement SizedBuffer
 typedef uint8_t SizedBuffer;
 
-static bool DoVerify(const password_handle_t *expected_handle,
+static bool DoVerify(const struct password_handle_t *expected_handle,
 		     const SizedBuffer *password)
 {
 	// FIXME: Implementation

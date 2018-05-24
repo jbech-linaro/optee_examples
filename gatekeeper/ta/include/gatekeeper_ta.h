@@ -8,6 +8,7 @@
 #define __GATEKEEPER_TA_H__
 
 #include <stdint.h>
+#include <stdbool.h>
 
 #define TA_GATEKEEPER_UUID \
 	{ 0x47617465, 0x4b65, 0x6570, \
@@ -26,6 +27,36 @@ struct __attribute__((packed)) failure_record_t {
 	uint32_t failure_counter;
 };
 
+/*
+ * Defines, typedefs, structs coming from:
+ * system/gatekeeper/include/gatekeeper/password_handle.h
+ *
+ * TODO: License! This file is Apache 2.0, need to check this before going
+ * public.
+ */
+#define HANDLE_FLAG_THROTTLE_SECURE 1
+#define HANDLE_VERSION_THROTTLE 2
+
 typedef uint64_t secure_id_t;
+typedef uint64_t salt_t;
+
+/**
+ * structure for easy serialization
+ * and deserialization of password handles.
+ */
+
+static const uint8_t HANDLE_VERSION = 2;
+struct __attribute__ ((__packed__)) password_handle_t {
+	// fields included in signature
+	uint8_t version;
+	secure_id_t user_id;
+	uint64_t flags;
+
+	// fields not included in signature
+	salt_t salt;
+	uint8_t signature[32];
+
+	bool hardware_backed;
+};
 
 #endif
