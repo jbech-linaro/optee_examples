@@ -130,12 +130,29 @@ static bool GetFailureRecord(uint32_t uid, secure_id_t user_id,
 
 static bool WriteFailureRecord(uint32_t uid, struct failure_record_t *record, bool secure)
 {
-	// FIXME: Implementation
-	(void)uid;
-	(void)record;
+	char object_id[STORAGE_ID_LENGTH_MAX] = { 0 };
+	TEE_ObjectHandle obj_handle = TEE_HANDLE_NULL;
+	TEE_Result res = TEE_ERROR_GENERIC;
+	uint32_t flags = TEE_DATA_FLAG_ACCESS_WRITE;
+
+	/* TODO: what about bool secure, we are always secure? */
 	(void)secure;
 
-	return false;
+	snprintf(object_id, STORAGE_ID_LENGTH_MAX, GATEKEEPER_PREFIX "%u",
+		 uid);
+
+	/* TODO: Consider use TEE_STORAGE_PRIVATE_RPMB instead */
+	res = TEE_OpenPersistentObject(TEE_STORAGE_PRIVATE,
+				       &object_id, sizeof(object_id),
+				       flags, &obj_handle);
+	if (res != TEE_SUCCESS)
+		return false;
+
+	res = TEE_WriteObjectData(obj_handle, record, sizeof(*record));
+	if (res != TEE_SUCCESS)
+		return false;
+
+	return true;
 }
 
 static bool ClearFailureRecord(uint32_t uid, secure_id_t user_id, bool secure)
