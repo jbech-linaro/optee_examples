@@ -59,4 +59,38 @@ struct __attribute__ ((__packed__)) password_handle_t {
 	bool hardware_backed;
 };
 
+/*
+ * Defines, typedefs, structs coming from:
+ * system/gatekeeper/include/gatekeeper/gatekeeper_messages.h
+ *
+ * TODO: License! This file is Apache 2.0, need to check this before going
+ * public.
+ */
+typedef enum {
+	ERROR_NONE = 0,
+	ERROR_INVALID = 1,
+	ERROR_RETRY = 2,
+	ERROR_UNKNOWN = 3,
+} gatekeeper_error_t;
+
+/*
+ * OP-TEE variant of EnrollRequest.
+ */
+struct gatekeeper_request {
+	gatekeeper_error_t error;
+	uint32_t user_id;
+	uint32_t retry_timeout;
+
+};
+
+/*
+ * OP-TEE variant of EnrollResponse.
+ */
+struct gatekeeper_response {
+	gatekeeper_error_t error;
+	uint32_t user_id;
+	uint32_t retry_timeout;
+	uint32_t *enrolled_password_handle;
+};
+
 #endif

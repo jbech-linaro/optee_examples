@@ -13,6 +13,16 @@
 #define MS_PER_S 1000
 
 /*******************************************************************************
+ * Functions defined in:
+ * system/gatekeeper/include/gatekeeper/gatekeeper_messages.h
+ * system/gatekeeper/gatekeeper_messages.cpp
+ ******************************************************************************/
+static void SetRetryTimeout(struct gatekeeper_response *response, uint32_t retry_timeout) {
+	response->retry_timeout = retry_timeout;
+	response->error = ERROR_RETRY;
+}
+
+/*******************************************************************************
  * Protected functions in the gatekeeper.h in AOSP
  ******************************************************************************/
 static bool GetAuthTokenKey(const uint8_t **auth_token_key, uint32_t *length)
@@ -118,6 +128,16 @@ static bool GetFailureRecord(uint32_t uid, secure_id_t user_id,
 	return true;
 }
 
+static bool WriteFailureRecord(uint32_t uid, struct failure_record_t *record, bool secure)
+{
+	// FIXME: Implementation
+	(void)uid;
+	(void)record;
+	(void)secure;
+
+	return false;
+}
+
 static bool ClearFailureRecord(uint32_t uid, secure_id_t user_id, bool secure)
 {
 	// FIXME: Implementation
@@ -198,16 +218,35 @@ static bool IncrementFailureRecord(uint32_t uid, secure_id_t user_id, uint64_t t
 // FIXME: Implement GateKeeperMessage
 typedef uint8_t GateKeeperMessage;
 
+/* TODO: Function copy/pasted with minor tweaks from AOSP, i.e., licence! */
 static bool ThrottleRequest(uint32_t uid, uint64_t timestamp,
 			    struct failure_record_t *record,
-			    bool secure, GateKeeperMessage *response)
+			    bool secure, struct gatekeeper_response *response)
 {
-	// FIXME: Implementation
-	(void)uid;
-	(void)timestamp;
-	(void)record;
-	(void)secure;
-	(void)response;
+	uint64_t last_checked = record->last_checked_timestamp;
+	uint32_t timeout = ComputeRetryTimeout(record);
+
+	if (timeout > 0) {
+		/* We have a pending timeout. */
+		if (timestamp < last_checked + timeout && timestamp > last_checked) {
+			// attempt before timeout expired, return remaining time
+			SetRetryTimeout(response, timeout - (timestamp - last_checked));
+			return true;
+		} else if (timestamp <= last_checked) {
+			/*
+			 * Device was rebooted or timer reset, don't count as
+			 * new failure but reset timeout.
+			 */
+			record->last_checked_timestamp = timestamp;
+			if (!WriteFailureRecord(uid, record, secure)) {
+				response->error = ERROR_UNKNOWN;
+				return true;
+			}
+			SetRetryTimeout(response, timeout);
+			return true;
+		}
+	}
+
 	return false;
 }
 
