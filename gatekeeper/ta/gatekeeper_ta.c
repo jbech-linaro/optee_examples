@@ -12,6 +12,88 @@
 #define DAY_IN_MS (1000 * 60 * 60 * 24)
 #define MS_PER_S 1000
 
+
+/*
+ *  HMAC a block of memory to produce the authentication tag
+ *  @param key       The secret key
+ *  @param keylen    The length of the secret key (bytes)
+ *  @param in        The data to HMAC
+ *  @param inlen     The length of the data to HMAC (bytes)
+ *  @param out       [out] Destination of the authentication tag
+ *  @param outlen    [in/out] Max size and resulting size of authentication tag
+ */
+static TEE_Result hmac_sha256(const uint8_t *key, const size_t keylen,
+			      const uint8_t *in, const size_t inlen,
+			      uint8_t *out, uint32_t *outlen)
+{
+	TEE_Attribute attr = { 0 };
+	TEE_ObjectHandle key_handle = TEE_HANDLE_NULL;
+	TEE_OperationHandle op_handle = TEE_HANDLE_NULL;
+	TEE_Result res = TEE_SUCCESS;
+
+	if (keylen < MIN_KEY_SIZE || keylen > MAX_KEY_SIZE)
+		return TEE_ERROR_BAD_PARAMETERS;
+
+	if (!in || !out || !outlen)
+		return TEE_ERROR_BAD_PARAMETERS;
+
+	/*
+	 * 1. Allocate cryptographic (operation) handle for the HMAC operation.
+	 *    Note that the expected size here is in bits (and therefore times
+	 *    8)!
+	 */
+	res = TEE_AllocateOperation(&op_handle, TEE_ALG_HMAC_SHA256,
+				    TEE_MODE_MAC, keylen * 8);
+	if (res != TEE_SUCCESS) {
+		EMSG("0x%08x", res);
+		goto exit;
+	}
+
+	/*
+	 * 2. Allocate a container (key handle) for the HMAC attributes. Note
+	 *    that the expected size here is in bits (and therefore times 8)!
+	 */
+	res = TEE_AllocateTransientObject(TEE_TYPE_HMAC_SHA1, keylen * 8,
+					  &key_handle);
+	if (res != TEE_SUCCESS) {
+		EMSG("0x%08x", res);
+		goto exit;
+	}
+
+	/*
+	 * 3. Initialize the attributes, i.e., point to the actual HMAC key.
+	 *    Here, the expected size is in bytes and not bits as above!
+	 */
+	TEE_InitRefAttribute(&attr, TEE_ATTR_SECRET_VALUE, key, keylen);
+
+	/* 4. Populate/assign the attributes with the key object */
+	res = TEE_PopulateTransientObject(key_handle, &attr, 1);
+	if (res != TEE_SUCCESS) {
+		EMSG("0x%08x", res);
+		goto exit;
+	}
+
+	/* 5. Associate the key (object) with the operation */
+	res = TEE_SetOperationKey(op_handle, key_handle);
+	if (res != TEE_SUCCESS) {
+		EMSG("0x%08x", res);
+		goto exit;
+	}
+
+	/* 6. Do the HMAC operations */
+	TEE_MACInit(op_handle, NULL, 0);
+	TEE_MACUpdate(op_handle, in, inlen);
+	res = TEE_MACComputeFinal(op_handle, NULL, 0, out, outlen);
+exit:
+	if (op_handle != TEE_HANDLE_NULL)
+		TEE_FreeOperation(op_handle);
+
+	/* It is OK to call this when key_handle is TEE_HANDLE_NULL */
+	TEE_FreeTransientObject(key_handle);
+
+	return res;
+}
+
 /*******************************************************************************
  * Functions defined in:
  * system/gatekeeper/include/gatekeeper/gatekeeper_messages.h
@@ -69,13 +151,25 @@ static void ComputeSignature(uint8_t *signature, uint32_t signature_length,
 			     const uint8_t *key, uint32_t key_length,
 			     const uint8_t *message, const uint32_t length)
 {
-	// FIXME: Implementation
-	(void)signature;
-	(void)signature_length;
-	(void)key;
-	(void)key_length;
-	(void)message;
-	(void)length;
+	uint8_t buf[SHA256_HASH_SIZE];
+	size_t buf_len;
+	size_t to_write;
+	TEE_Result res = TEE_ERROR_GENERIC;
+
+	res = hmac_sha256(key, key_length, message, length, buf, &buf_len);
+	if (res != TEE_SUCCESS) {
+		memset(signature, 0, signature_length);
+		signature_length = 0;
+		return;
+	}
+
+	to_write = buf_len;
+
+	if (buf_len > signature_length)
+		to_write = signature_length;
+
+	memset(signature, 0, signature_length);
+	memcpy(signature, buf, to_write);
 }
 
 /**

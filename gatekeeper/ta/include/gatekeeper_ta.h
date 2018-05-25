@@ -9,6 +9,9 @@
 
 #include <stdint.h>
 #include <stdbool.h>
+/*******************************************************************************
+ * TA specifics
+ ******************************************************************************/
 
 #define TA_GATEKEEPER_UUID \
 	{ 0x47617465, 0x4b65, 0x6570, \
@@ -17,7 +20,20 @@
 #define TA_GATEKEEPER_ENROLL 0
 #define TA_GATEKEEPER_VERIFY 1
 
-/* Types etc coming from the AOSP and Trusty side */
+/*******************************************************************************
+ * Misc
+ ******************************************************************************/
+/* The size of a SHA256 hash in bytes. */
+#define SHA256_HASH_SIZE 32
+
+/* GP says that for HMAC SHA256, max is 1024 bits and min 192 bits. */
+#define MAX_KEY_SIZE 128 /* In bytes */
+#define MIN_KEY_SIZE 24 /* In bytes */
+
+
+/*******************************************************************************
+ * Types etc coming from the AOSP and Trusty side.
+ ******************************************************************************/
 #define STORAGE_ID_LENGTH_MAX 64
 #define GATEKEEPER_PREFIX "gatekeeper."
 
@@ -72,6 +88,10 @@ typedef enum {
 	ERROR_RETRY = 2,
 	ERROR_UNKNOWN = 3,
 } gatekeeper_error_t;
+
+/*******************************************************************************
+ * OP-TEE equivalent of AOSP classes etc
+ ******************************************************************************/
 
 /*
  * OP-TEE variant of EnrollRequest.
