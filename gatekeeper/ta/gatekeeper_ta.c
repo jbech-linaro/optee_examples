@@ -251,11 +251,11 @@ static bool WriteFailureRecord(uint32_t uid, struct failure_record_t *record, bo
 
 static bool ClearFailureRecord(uint32_t uid, secure_id_t user_id, bool secure)
 {
-	// FIXME: Implementation
-	(void)uid;
-	(void)user_id;
-	(void)secure;
-	return false;
+	struct failure_record_t record;
+	record.secure_user_id = user_id;
+	record.last_checked_timestamp = 0;
+	record.failure_counter = 0;
+	return WriteFailureRecord(uid, &record, secure);
 }
 
 /*
