@@ -231,20 +231,45 @@ static void MintAuthToken(uint8_t *auth_token, uint32_t *length,
 	(void)challenge;
 }
 
-static bool CreatePasswordHandle(
-	SizedBuffer *password_handle, salt_t salt, secure_id_t secure_id,
-	secure_id_t authenticator_id, uint8_t handle_version,
-	const uint8_t *password, uint32_t password_length)
+static bool CreatePasswordHandle(struct password_handle_t *password_handle,
+				 salt_t salt, secure_id_t user_id,
+				 uint64_t flags, uint8_t handle_version,
+				 const uint8_t *password, uint32_t password_length)
 {
-	// FIXME: Implementation
-	(void)password_handle;
-	(void)salt;
-	(void)secure_id;
-	(void)authenticator_id;
-	(void)handle_version;
-	(void)password;
-	(void)password_length;
-	return false;
+	uint32_t metadata_length = sizeof(user_id) + sizeof(flags) +
+		sizeof(HANDLE_VERSION);
+
+	const size_t to_sign_size = password_length + metadata_length;
+	const uint8_t *password_key = NULL;
+	uint32_t password_key_length = 0;
+	uint8_t *to_sign;
+
+	password_handle->version = handle_version;
+	password_handle->salt = salt;
+	password_handle->user_id = user_id;
+	password_handle->flags = flags;
+	password_handle->hardware_backed = IsHardwareBacked();
+
+	to_sign = TEE_Malloc(to_sign_size, TEE_MALLOC_FILL_ZERO);
+	if (!to_sign)
+		return false;
+
+	memcpy(to_sign, password_handle, metadata_length);
+	memcpy(to_sign + metadata_length, password, password_length); 
+
+	GetPasswordKey(&password_key, &password_key_length);
+	if (!password_key || password_key_length == 0) {
+		TEE_Free(to_sign);
+		return false;
+	}
+
+	ComputePasswordSignature(password_handle->signature,
+				 sizeof(password_handle->signature),
+				 password_key, password_key_length,
+				 to_sign, to_sign_size, salt);
+	TEE_Free(to_sign);
+
+	return true;
 }
 
 static bool IncrementFailureRecord(uint32_t uid, secure_id_t user_id, uint64_t timestamp,
