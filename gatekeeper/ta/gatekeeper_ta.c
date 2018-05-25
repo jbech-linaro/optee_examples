@@ -122,22 +122,6 @@ static void GetPasswordKey(const uint8_t **password_key, uint32_t *length)
 	(void)length;
 }
 
-static void ComputePasswordSignature(
-	uint8_t *signature, uint32_t signature_length,
-	const uint8_t *key, uint32_t key_length,
-	const uint8_t *password, uint32_t password_length,
-	salt_t salt)
-{
-	// FIXME: Implementation
-	(void)signature;
-(void)signature_length;
-	(void)key;
-	(void)key_length;
-	(void)password;
-	(void)password_length;
-	(void)salt;
-}
-
 /**
  * Retrieves a unique, cryptographically randomly generated buffer for use in
  * password hashing, etc.
@@ -170,6 +154,19 @@ static void ComputeSignature(uint8_t *signature, uint32_t signature_length,
 
 	memset(signature, 0, signature_length);
 	memcpy(signature, buf, to_write);
+}
+
+static void ComputePasswordSignature(
+	uint8_t *signature, uint32_t signature_length,
+	const uint8_t *key, uint32_t key_length,
+	const uint8_t *password, uint32_t password_length,
+	salt_t salt)
+{
+	uint8_t salted_password[password_length + sizeof(salt)];
+	memcpy(salted_password, &salt, sizeof(salt));
+	memcpy(salted_password + sizeof(salt), password, password_length);
+	ComputeSignature(signature, signature_length, key, key_length,
+			 salted_password, password_length + sizeof(salt));
 }
 
 /**
