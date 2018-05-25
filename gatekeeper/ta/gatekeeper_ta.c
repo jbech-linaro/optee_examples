@@ -223,13 +223,11 @@ static bool CreatePasswordHandle(
 static bool IncrementFailureRecord(uint32_t uid, secure_id_t user_id, uint64_t timestamp,
 				   struct failure_record_t *record, bool secure)
 {
-	// FIXME: Implementation
-	(void)uid;
-	(void)user_id;
-	(void)timestamp;
-	(void)record;
-	(void)secure;
-	return false;
+	record->secure_user_id = user_id;
+	record->failure_counter++;
+	record->last_checked_timestamp = timestamp;
+
+	return WriteFailureRecord(uid, record, secure);
 }
 
 // FIXME: Implement GateKeeperMessage
