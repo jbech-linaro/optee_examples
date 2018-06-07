@@ -6,6 +6,7 @@
  */
 #include <gatekeeper_ta.h>
 #include <string.h>
+#include <string_ext.h>
 #include <tee_internal_api_extensions.h>
 #include <tee_internal_api.h>
 
@@ -294,16 +295,29 @@ static bool IsHardwareBacked(void)
 	return true;
 }
 
-// FIXME: Implement SizedBuffer
-typedef uint8_t SizedBuffer;
+/* TODO: This is in the "private" area below */
+static bool CreatePasswordHandle(struct password_handle_t *password_handle,
+				 salt_t salt, secure_id_t user_id,
+				 uint64_t flags, uint8_t handle_version,
+				 const uint8_t *password, uint32_t password_length);
 
 static bool DoVerify(const struct password_handle_t *expected_handle,
-		     const SizedBuffer *password)
+		     const uint8_t *password, size_t password_length)
 {
-	// FIXME: Implementation
-	(void)expected_handle;
-	(void)password;
-	return false;
+	struct password_handle_t provided_handle;
+
+	if (!password)
+		return false;
+
+	if (!CreatePasswordHandle(&provided_handle,
+				  expected_handle->salt, expected_handle->user_id,
+				  expected_handle->flags, expected_handle->version,
+				  password, password_length)) {
+		return false;
+	}
+
+	return buf_compare_ct(provided_handle.signature, expected_handle->signature,
+			sizeof(expected_handle->signature)) == 0;
 }
 
 /*******************************************************************************
