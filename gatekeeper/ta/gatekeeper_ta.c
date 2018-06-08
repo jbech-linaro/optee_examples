@@ -13,6 +13,12 @@
 #define DAY_IN_MS (1000 * 60 * 60 * 24)
 #define MS_PER_S 1000
 
+/*
+ * TODO: Check whether usage for this is correct, in AOSP this is part of the
+ * EnrollRepsonse class, so eventually we would need to change this to a struct
+ * similar to the EnrollRepsonse later on.
+ */
+static struct password_handle_t enrolled_password_handle;
 
 /*
  *  HMAC a block of memory to produce the authentication tag
@@ -440,6 +446,15 @@ static TEE_Result enroll(uint32_t __unused param_types, TEE_Param __unused param
 	}
 
 	return res;
+}
+
+/*******************************************************************************
+ * Gatekeeper messages (./system/gatekeeper/gatekeeper_messages.cpp)
+ ******************************************************************************/
+static void SetEnrolledPasswordHandle(struct password_handle_t *password_handle)
+{
+	memcpy(&enrolled_password_handle, password_handle,
+	       sizeof(struct password_handle_t));
 }
 
 #if 0 // From gatekeeper.cpp in AOSP
