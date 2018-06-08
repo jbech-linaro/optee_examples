@@ -4,6 +4,7 @@
  *
  * SPDX-License-Identifier: BSD-2-Clause
  */
+#include <aosp/hw_auth_token.h>
 #include <gatekeeper_ta.h>
 #include <string.h>
 #include <string_ext.h>
