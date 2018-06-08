@@ -430,26 +430,6 @@ static bool ThrottleRequest(uint32_t uid, uint64_t timestamp,
 }
 
 /*******************************************************************************
- * Public functions in the gatekeeper.h in AOSP
- ******************************************************************************/
-static TEE_Result enroll(uint32_t __unused param_types, TEE_Param __unused params[4])
-{
-	TEE_Result res = TEE_SUCCESS;
-
-	uint32_t exp_param_types = TEE_PARAM_TYPES(TEE_PARAM_TYPE_NONE,
-						   TEE_PARAM_TYPE_NONE,
-						   TEE_PARAM_TYPE_NONE,
-						   TEE_PARAM_TYPE_NONE);
-
-	if (param_types != exp_param_types) {
-		EMSG("Expected: 0x%x, got: 0x%x", exp_param_types, param_types);
-		return TEE_ERROR_BAD_PARAMETERS;
-	}
-
-	return res;
-}
-
-/*******************************************************************************
  * Gatekeeper messages (./system/gatekeeper/gatekeeper_messages.cpp)
  ******************************************************************************/
 static void SetEnrolledPasswordHandle(struct password_handle_t *password_handle)
@@ -458,86 +438,101 @@ static void SetEnrolledPasswordHandle(struct password_handle_t *password_handle)
 	       sizeof(struct password_handle_t));
 }
 
-#if 0 // From gatekeeper.cpp in AOSP
-void GateKeeper::Enroll(const EnrollRequest &request, EnrollResponse *response) {
-    if (response == NULL) return;
-
-    if (!request.provided_password.buffer.get()) {
-        response->error = ERROR_INVALID;
-        return;
-    }
-
-    secure_id_t user_id = 0;// todo: rename to policy
-    uint32_t uid = request.user_id;
-
-    if (request.password_handle.buffer.get() == NULL) {
-        // Password handle does not match what is stored, generate new SecureID
-        GetRandom(&user_id, sizeof(secure_id_t));
-    } else {
-        password_handle_t *pw_handle =
-            reinterpret_cast<password_handle_t *>(request.password_handle.buffer.get());
-
-        if (pw_handle->version > HANDLE_VERSION) {
-            response->error = ERROR_INVALID;
-            return;
-        }
-
-        user_id = pw_handle->user_id;
-
-        uint64_t timestamp = GetMillisecondsSinceBoot();
-
-        uint32_t timeout = 0;
-        bool throttle = (pw_handle->version >= HANDLE_VERSION_THROTTLE);
-        if (throttle) {
-            bool throttle_secure = pw_handle->flags & HANDLE_FLAG_THROTTLE_SECURE;
-            failure_record_t record;
-            if (!GetFailureRecord(uid, user_id, &record, throttle_secure)) {
-                response->error = ERROR_UNKNOWN;
-                return;
-            }
-
-            if (ThrottleRequest(uid, timestamp, &record, throttle_secure, response)) return;
-
-            if (!IncrementFailureRecord(uid, user_id, timestamp, &record, throttle_secure)) {
-                response->error = ERROR_UNKNOWN;
-                return;
-            }
-
-            timeout = ComputeRetryTimeout(&record);
-        }
-
-        if (!DoVerify(pw_handle, request.enrolled_password)) {
-            // incorrect old password
-            if (throttle && timeout > 0) {
-                response->SetRetryTimeout(timeout);
-            } else {
-                response->error = ERROR_INVALID;
-            }
-            return;
-        }
-    }
-
-    uint64_t flags = 0;
-    if (ClearFailureRecord(uid, user_id, true)) {
-        flags |= HANDLE_FLAG_THROTTLE_SECURE;
-    } else {
-        ClearFailureRecord(uid, user_id, false);
-    }
-
+/*******************************************************************************
+ * Public functions in the gatekeeper.h in AOSP
+ ******************************************************************************/
+static void do_enroll(const struct enroll_request *request,
+		      struct enroll_response *response)
+{
     salt_t salt;
+    secure_id_t user_id = 0;
+    struct password_handle_t password_handle;
+    uint32_t uid;
+    uint64_t flags;
+
+    if (!response || !request || !request->provided_password) {
+	    response->msg.error = ERROR_INVALID;
+	    return;
+    }
+
+    uid = request->msg.user_id;
+
+    if (!request->password_handle) {
+	    /* Password handle does not match what is stored, generate new SecureID */
+	    GetRandom(&user_id, sizeof(secure_id_t));
+    } else {
+	    uint64_t timestamp;
+	    uint32_t timeout;
+	    bool throttle;
+	    struct password_handle_t *pw_handle = request->password_handle;
+
+	    if (pw_handle->version > HANDLE_VERSION) {
+		    response->msg.error = ERROR_INVALID;
+		    return;
+	    }
+
+	    user_id = pw_handle->user_id;
+	    timestamp = GetMillisecondsSinceBoot();
+	    timeout = 0;
+
+	    throttle = (pw_handle->version >= HANDLE_VERSION_THROTTLE);
+	    if (throttle) {
+		    bool throttle_secure = pw_handle->flags & HANDLE_FLAG_THROTTLE_SECURE;
+		    struct failure_record_t record;
+		    if (!GetFailureRecord(uid, user_id, &record, throttle_secure)) {
+			    response->msg.error = ERROR_UNKNOWN;
+			    return;
+		    }
+
+		    if (ThrottleRequest(uid, timestamp, &record, throttle_secure, response))
+			    return;
+
+		    if (!IncrementFailureRecord(uid, user_id, timestamp, &record, throttle_secure)) {
+			    response->msg.error = ERROR_UNKNOWN;
+			    return;
+		    }
+
+		    timeout = ComputeRetryTimeout(&record);
+	    }
+
+	    /* TODO: Fix the password length!!! */
+	    DMSG("TODO: enrolled_password length hardcoded to 1!");
+	    if (!DoVerify(pw_handle, request->enrolled_password, 1)) {
+		    /* Incorrect old password */
+		    if (throttle && timeout > 0) {
+			    SetRetryTimeout(response, timeout);
+		    } else {
+			    response->msg.error = ERROR_INVALID;
+		    }
+		    return;
+	    }
+    }
+
+    flags = 0;
+
+    if (ClearFailureRecord(uid, user_id, true)) {
+	    flags |= HANDLE_FLAG_THROTTLE_SECURE;
+    } else {
+	    ClearFailureRecord(uid, user_id, false);
+    }
+
     GetRandom(&salt, sizeof(salt));
 
-    SizedBuffer password_handle;
+    DMSG("TODO: provided_password length hardcoded to 1!");
     if (!CreatePasswordHandle(&password_handle,
-            salt, user_id, flags, HANDLE_VERSION, request.provided_password.buffer.get(),
-            request.provided_password.length)) {
-        response->error = ERROR_INVALID;
+            salt, user_id, flags, HANDLE_VERSION, request->provided_password,
+            1 /* TODO: request->provided_password.length */)) {
+        response->msg.error = ERROR_INVALID;
         return;
     }
 
-    response->SetEnrolledPasswordHandle(&password_handle);
+    /* 
+     * TODO: Shall the SetEnrolledPasswordHandle stora a global variable, it
+     * seems like it should be stored in the enroll_request ... i.e., this and
+     * the global variable should probably be changed.
+     */
+    SetEnrolledPasswordHandle(&password_handle);
 }
-#endif
 
 static TEE_Result verify(uint32_t __unused param_types, TEE_Param __unused params[4])
 {
@@ -555,6 +550,24 @@ static TEE_Result verify(uint32_t __unused param_types, TEE_Param __unused param
 
 	return res;
 }
+
+static TEE_Result enroll(uint32_t __unused param_types, TEE_Param __unused params[4])
+{
+	TEE_Result res = TEE_SUCCESS;
+
+	uint32_t exp_param_types = TEE_PARAM_TYPES(TEE_PARAM_TYPE_NONE,
+						   TEE_PARAM_TYPE_NONE,
+						   TEE_PARAM_TYPE_NONE,
+						   TEE_PARAM_TYPE_NONE);
+
+	if (param_types != exp_param_types) {
+		EMSG("Expected: 0x%x, got: 0x%x", exp_param_types, param_types);
+		return TEE_ERROR_BAD_PARAMETERS;
+	}
+
+	return res;
+}
+
 
 /*******************************************************************************
  * Mandatory TA functions.

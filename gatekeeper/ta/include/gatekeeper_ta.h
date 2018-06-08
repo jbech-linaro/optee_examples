@@ -103,7 +103,7 @@ struct gatekeeper_message {
  */
 struct enroll_request {
 	struct gatekeeper_message msg;
-	uint8_t *password_handle;
+	struct password_handle_t *password_handle;
 	uint8_t *enrolled_password;
 	uint8_t *provided_password;
 };
