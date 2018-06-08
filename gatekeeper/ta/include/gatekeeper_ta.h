@@ -92,25 +92,28 @@ typedef enum {
 /*******************************************************************************
  * OP-TEE equivalent of AOSP classes etc
  ******************************************************************************/
+struct gatekeeper_message {
+	gatekeeper_error_t error;
+	uint32_t user_id;
+	uint32_t retry_timeout;
+};
 
 /*
  * OP-TEE variant of EnrollRequest.
  */
-struct gatekeeper_request {
-	gatekeeper_error_t error;
-	uint32_t user_id;
-	uint32_t retry_timeout;
-
+struct enroll_request {
+	struct gatekeeper_message msg;
+	uint8_t *password_handle;
+	uint8_t *enrolled_password;
+	uint8_t *provided_password;
 };
 
 /*
  * OP-TEE variant of EnrollResponse.
  */
-struct gatekeeper_response {
-	gatekeeper_error_t error;
-	uint32_t user_id;
-	uint32_t retry_timeout;
-	uint32_t *enrolled_password_handle;
+struct enroll_response {
+	struct gatekeeper_message msg;
+	uint8_t *enrolled_password_handle;
 };
 
 #endif

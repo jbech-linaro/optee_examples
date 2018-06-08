@@ -107,9 +107,9 @@ exit:
  * system/gatekeeper/include/gatekeeper/gatekeeper_messages.h
  * system/gatekeeper/gatekeeper_messages.cpp
  ******************************************************************************/
-static void SetRetryTimeout(struct gatekeeper_response *response, uint32_t retry_timeout) {
-	response->retry_timeout = retry_timeout;
-	response->error = ERROR_RETRY;
+static void SetRetryTimeout(struct enroll_response *response, uint32_t retry_timeout) {
+	response->msg.retry_timeout = retry_timeout;
+	response->msg.error = ERROR_RETRY;
 }
 
 /*******************************************************************************
@@ -400,7 +400,7 @@ typedef uint8_t GateKeeperMessage;
 /* TODO: Function copy/pasted with minor tweaks from AOSP, i.e., licence! */
 static bool ThrottleRequest(uint32_t uid, uint64_t timestamp,
 			    struct failure_record_t *record,
-			    bool secure, struct gatekeeper_response *response)
+			    bool secure, struct enroll_response *response)
 {
 	uint64_t last_checked = record->last_checked_timestamp;
 	uint32_t timeout = ComputeRetryTimeout(record);
@@ -418,7 +418,7 @@ static bool ThrottleRequest(uint32_t uid, uint64_t timestamp,
 			 */
 			record->last_checked_timestamp = timestamp;
 			if (!WriteFailureRecord(uid, record, secure)) {
-				response->error = ERROR_UNKNOWN;
+				response->msg.error = ERROR_UNKNOWN;
 				return true;
 			}
 			SetRetryTimeout(response, timeout);
