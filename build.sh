@@ -58,7 +58,7 @@ export PLATFORM=vexpress
 export PLATFORM_FLAVOR=qemu_virt
 export CROSS_COMPILE=arm-linux-gnueabihf-
 
-while getopts a:cd:f:gl:p:sht: option
+while getopts a:cd:f:gil:p:sht: option
 do
 	case "${option}"
 		in
@@ -75,6 +75,10 @@ do
 
 		g) SHOW_GDB_INFO=;;
 
+		i) echo "Available example TA/Host applications: "
+		   ls -d */ | cut -f1 -d'/' | grep -v docs
+		   echo "";;
+
 		l) LOAD_ADDRESS=${OPTARG};;
 
 		p) export PLATFORM=${OPTARG};;
@@ -88,6 +92,7 @@ do
 		   echo " -d                     mount point to shared folder with TA's"
 		   echo " -f <PLATFORM_FLAVOR>   default: ${PLATFORM_FLAVOR}"
 		   echo " -g                     hide GDB string"
+		   echo " -i                     list all available TA/Host applications"
 		   echo " -l                     Load address of the TA (see secure UART)"
 		   echo " -p <PLATFORM>          default: ${PLATFORM}"
 		   echo " -s                     run sync (QEMU_VIRTFS_ENABLE=y QEMU_USERNET_ENABLE=y)"
