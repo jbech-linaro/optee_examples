@@ -58,7 +58,7 @@ export PLATFORM=vexpress
 export PLATFORM_FLAVOR=qemu_virt
 export CROSS_COMPILE=arm-linux-gnueabihf-
 
-while getopts a:cd:f:gl:p:ht: option
+while getopts a:cd:f:gl:p:sht: option
 do
 	case "${option}"
 		in
@@ -90,7 +90,7 @@ do
 		   echo " -g                     hide GDB string"
 		   echo " -l                     Load address of the TA (see secure UART)"
 		   echo " -p <PLATFORM>          default: ${PLATFORM}"
-		   echo " -s                     run sync"
+		   echo " -s                     run sync (QEMU_VIRTFS_ENABLE=y QEMU_USERNET_ENABLE=y)"
 		   echo " -t <ta-host_to_build>  default: ${TARGET}"
 		   exit
 		   ;;
@@ -145,3 +145,9 @@ if [ ! -z ${SHOW_GDB_INFO} ]; then
 	TA_LOAD_ADDRESS=$((${TA_TEXT_OFFSET} + ${LOAD_ADDRESS}))
 	echo "   add-symbol-file ${TA_FILE} `printf '0x%08x\n' ${TA_LOAD_ADDRESS}`"
 fi;
+
+if [ ! -z ${SYNC} ]; then
+	echo -e "\nMount alias on device / QEMU:"
+	TA_FILE=`cd ${CURDIR}/${TARGET}/ta/ | ls *.ta`
+	echo "   alias setup_${TARGET}='mkdir -p /host && mount -t 9p -o trans=virtio host /host && cd /lib/optee_armtz && ln -sf /host/optee_examples/${TARGET}/ta/${TA_FILE} ${TA_FILE} && cd /usr/bin && ln -sf /host/optee_examples/${TARGET}/host/optee_example_${TARGET} ${TARGET} && ln -s /usr/lib/libteec.so /usr/lib/libteec.so.1.0'"
+fi
