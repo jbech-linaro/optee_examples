@@ -12,21 +12,24 @@
 # cannot point to the <root>/out-br/ git.
 #
 # As of now we still support building running:
-#   $ make optee-examples-common
+#   $ make optee-os
+#   $ make optee-client
+
 # in build.git. Doing so will build and put the h-files needed in the old
 # locations. So, to build using this shell script it's not sufficient to just
-# run make. One also needs to run the optee-examples-common target. I.e.
+# run make. One also needs to run the optee-os and optee_client target, i.e.
 #
 # 1. In build.git: make
-# 2. In build.git: make optee-examples-common
-# 3. In optee_examples.git: ./build_hello_world.sh
+# 2. In build.git: make optee-os
+# 2. In build.git: make optee-client-common
+# 3. In optee_examples.git: ./build.sh
 #
 # Note! Don't forget to change paths from <root>/out-br/... to this folder
-# instead in case you run GDB or have script doing scp with host + TA's.
+# in case you run GDB or have script doing scp with host + TA's.
 
 clear
 echo -e "build.sh\n--------"
-echo "args: $@"
+echo -e "args: $@\n"
 
 CURDIR=`pwd`
 
@@ -77,7 +80,9 @@ do
 
 		i) echo "Available example TA/Host applications: "
 		   ls -d */ | cut -f1 -d'/' | grep -v docs
-		   echo "";;
+		   echo ""
+		   exit
+		   ;;
 
 		l) LOAD_ADDRESS=${OPTARG};;
 
@@ -105,7 +110,7 @@ done
 # Check that optee_client has been built
 if [ ! -d ${TEEC_EXPORT} ]; then
 	echo "Error: OP-TEE client hasn't been built"
-	echo "  Try: cd ../build && make -j`nproc` optee-client && cd -"
+	echo "  Try: cd ../build && make -j`nproc` optee-client-common && cd -"
 	echo "       then, retry!"
 	exit
 fi
@@ -127,11 +132,9 @@ echo -e "  LOAD_ADDRESS:    ${LOAD_ADDRESS}\n"
 
 # Build the host application
 cd $CURDIR/${TARGET}/host
-#export HOST_CROSS_COMPILE=${CROSS_COMPILE}
 make CROSS_COMPILE=${CROSS_COMPILE} --no-builtin-variables ${CLEAN}
 
 # Toolchain prefix for the Trusted Applications
-#export TA_CROSS_COMPILE=${CROSS_COMPILE}
 cd $CURDIR/${TARGET}/ta
 make CROSS_COMPILE=${CROSS_COMPILE} ${CLEAN}
 
