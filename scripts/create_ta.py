@@ -40,6 +40,7 @@ def get_parser():
 
 
 def convert_to_header_format(my_uuid):
+    global verbose
     if verbose:
         print("time_low: {:08x}".format(my_uuid.time_low))
         print("time_mid: {:04x}".format(my_uuid.time_mid))
@@ -90,7 +91,9 @@ def main(argv):
 
     args = parser.parse_args()
 
-    if not args.v:
+    global verbose
+    if args.v:
+        print("Enable verbose")
         verbose = True
 
     if not args.name:
@@ -106,6 +109,16 @@ def main(argv):
     uuid_makefile, uuid_headerfile = create_uuid(args.uuid)
     print("UUID_MAKEFILE: {}".format(uuid_makefile))
     print("UUID_HEADERFILE: {}".format(uuid_headerfile))
+
+    root = os.path.split(os.getcwd())[0]
+    dest = "{}/{}".format(root, ta_name_lower_case)
+    source = "{}/template".format(os.getcwd())
+
+    if verbose:
+        print("src: {}".format(source))
+        print("dst: {}".format(dest))
+
+    # subprocess.call()
 
 
 if __name__ == "__main__":
