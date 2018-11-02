@@ -93,7 +93,7 @@ def sedify(word_to_replace, ta_name, destination):
     global verbose
 
     p1 = subprocess.Popen(["rgrep", "-l", word_to_replace, destination],
-            stdout=subprocess.PIPE)
+                          stdout=subprocess.PIPE)
 
     output = p1.communicate()[0].decode("utf-8")
     output = output.split("\n")
@@ -108,7 +108,8 @@ def sedify(word_to_replace, ta_name, destination):
             if verbose:
                 print("\nsed {} {}".format(sed_args, f))
         else:
-            p2 = subprocess.Popen(["sed", "-i", sed_args, f], stdout=subprocess.PIPE)
+            p2 = subprocess.Popen(["sed", "-i", sed_args, f],
+                                  stdout=subprocess.PIPE)
 
         output = p2.communicate()[0].decode("utf-8")
         # if verbose:
@@ -173,7 +174,7 @@ def main(argv):
             ("TA_NAME_LOWER_CASE", ta_name_lower_case),
             ("UUID_MAKEFILE", uuid_makefile),
             ("UUID_HEADERFILE", uuid_headerfile),
-            ("YEAR", now.year) }
+            ("YEAR", now.year)}
 
     for i in conv_array:
         sedify(i[0], i[1], dest)
