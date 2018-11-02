@@ -166,7 +166,7 @@ def main(argv):
         print("dst: {}".format(dest))
 
     # Copy the template
-    # subprocess.call(["cp", "-r", source, dest])
+    subprocess.call(["cp", "-r", "-f", source, dest])
 
     conv_array = {
             ("TA_NAME_UPPER_CASE", ta_name_upper_case),
