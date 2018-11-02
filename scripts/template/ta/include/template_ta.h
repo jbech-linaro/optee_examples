@@ -29,9 +29,6 @@
 
 #define TA_<<<TA_NAME_UPPER_CASE>>>_UUID \
 	<<<UUID_HEADERFILE>>>
-#if 0
-	{ 0xffffffff, 0xffff, 0xffff, { 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff} }
-#endif
 
 /* The function IDs implemented in this Trusted Application */
 #define TA_<<<TA_NAME_UPPER_CASE>>>_CMD_INC_VALUE	0
