@@ -179,6 +179,13 @@ def main(argv):
     for i in conv_array:
         sedify(i[0], i[1], dest)
 
+    # Ugly! Fix!
+    os.rename(dest + "/ta/include/template_ta.h",
+              dest + "/ta/include/" + ta_name_lower_case + "_ta.h")
+
+    os.rename(dest + "/ta/template_ta.c",
+              dest + "/ta/" + ta_name_lower_case + "_ta.c")
+
 
 if __name__ == "__main__":
     main(sys.argv)
