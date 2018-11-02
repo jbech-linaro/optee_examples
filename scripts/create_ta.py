@@ -118,7 +118,21 @@ def main(argv):
         print("src: {}".format(source))
         print("dst: {}".format(dest))
 
-    # subprocess.call()
+    # subprocess.call(["cp", "-r", source, dest])
+    p1 = subprocess.Popen(["rgrep", "-l", "TA_NAME_UPPER_CASE", dest],
+            stdout=subprocess.PIPE)
+
+    output = p1.communicate()[0].decode("utf-8")
+    output = output.split("\n")
+    # Remove the empty folder
+    output.remove('')
+
+    for f in output:
+        keyword_from = "<<<TA_NAME_UPPER_CASE>>>"
+        keyword_to = ta_name_upper_case
+        sed_args = "-i s'/{}/{}/'".format(keyword_from, keyword_to)
+        print("sed {} {}".format(sed_args, f))
+        #subprocess.call(["sed", "-i s'/<<<TA#_NAME_UPPER_CASE>>>/", ta_name_upper_case, "/",
 
 
 if __name__ == "__main__":
