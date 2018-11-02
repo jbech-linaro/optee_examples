@@ -39,9 +39,9 @@ int main(void)
 {
 	TEEC_Context ctx = { 0 };
 	TEEC_Operation op = { 0 };
-	TEEC_Result res = TEE_ERROR_BAD_PARAMETERS;
+	TEEC_Result res = TEEC_ERROR_BAD_PARAMETERS;
 	TEEC_Session sess = { 0 };
-	TEEC_UUID uuid = TA_<<<TA_NAME_UPPER_CASE>>>_UUID;
+	TEEC_UUID uuid = <<<TA_NAME_UPPER_CASE>>>_TA_UUID;
 	uint32_t err_origin = 0;
 
 	/* Initialize a context connecting us to the TEE */
@@ -73,8 +73,8 @@ int main(void)
 				 TA_<<<TA_NAME_UPPER_CASE>>>_CMD_INC_VALUE,
 				 &op, &err_origin);
 
-	if (res != TEEC_SUCCESS) errx(1, "TEEC_InvokeCommand failed with code
-				      0x%x origin 0x%x", res, err_origin);
+	if (res != TEEC_SUCCESS) errx(1, "TEEC_InvokeCommand failed with code "
+				      "0x%x origin 0x%x", res, err_origin);
 
 	printf("TA incremented value to %d\n", op.params[0].value.a);
 

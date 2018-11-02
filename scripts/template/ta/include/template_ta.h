@@ -27,7 +27,7 @@
 #ifndef TA_<<<TA_NAME_UPPER_CASE>>>_H
 #define TA_<<<TA_NAME_UPPER_CASE>>>_H
 
-#define TA_<<<TA_NAME_UPPER_CASE>>>_UUID \
+#define <<<TA_NAME_UPPER_CASE>>>_TA_UUID \
 	<<<UUID_HEADERFILE>>>
 
 /* The function IDs implemented in this Trusted Application */

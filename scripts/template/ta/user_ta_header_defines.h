@@ -34,7 +34,7 @@
 /* To get the TA UUID definition */
 #include <<<<TA_NAME_LOWER_CASE>>>_ta.h>
 
-#define TA_UUID		TA_<<<TA_NAME_UPPER_CASE>>>_TA_UUID
+#define TA_UUID		<<<TA_NAME_UPPER_CASE>>>_TA_UUID
 
 /*
  * TA properties: multi-instance TA, no specific attribute TA_FLAG_EXEC_DDR is
