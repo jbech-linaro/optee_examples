@@ -29,6 +29,14 @@ def get_parser():
                         default=None,
                         help='Specific UUID to use')
 
+    parser.add_argument('--stack-size', required=False, action="store",
+                        default=None,
+                        help='Stack size of TA (default: 2048)')
+
+    parser.add_argument('--heap-size', required=False, action="store",
+                        default=None,
+                        help='Heap size of TA (default: 32768)')
+
     parser.add_argument('-d', '--dry-run', required=False, action="store_true",
                         default=False,
                         help='Just output to stdout, do any sed operations')
@@ -157,6 +165,15 @@ def main(argv):
     # Prepare year for copyright
     now = datetime.datetime.now()
 
+    # Prepare stack and heap size
+    stack_size = 1024 * 2
+    if args.stack_size:
+        stack_size = args.stack_size
+
+    heap_size = 1024 * 32
+    if args.heap_size:
+        heap_size = args.heap_size
+
     # Calculate source and destination path
     root = os.path.split(os.getcwd())[0]
     dest = "{}/{}".format(root, ta_name_lower_case)
@@ -174,7 +191,9 @@ def main(argv):
             ("TA_NAME_LOWER_CASE", ta_name_lower_case),
             ("UUID_MAKEFILE", uuid_makefile),
             ("UUID_HEADERFILE", uuid_headerfile),
-            ("YEAR", now.year)}
+            ("YEAR", now.year),
+            ("TA_STACK_SIZE", stack_size),
+            ("TA_HEAP_SIZE", heap_size)}
 
     for i in conv_array:
         sedify(i[0], i[1], dest)
