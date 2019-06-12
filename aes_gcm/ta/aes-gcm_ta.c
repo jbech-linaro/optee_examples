@@ -104,24 +104,24 @@ void TA_CloseSessionEntryPoint(void __maybe_unused *sess_ctx)
  *              T ab6e47d42cec13bdf53a67b21257bddf
  */
 
-static const uint8_t ae_data_aes_gcm_vect2_key[] = {
+static const uint8_t aes_gcm_key[] = {
         0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
         0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
 };
-static const uint8_t ae_data_aes_gcm_vect2_nonce[] = {
+static const uint8_t aes_gcm_nonce[] = {
         0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
         0x00, 0x00, 0x00, 0x00
 };
 #define ae_data_aes_gcm_vect2_aad NULL
-static const uint8_t ae_data_aes_gcm_vect2_ptx[] = {
+static const uint8_t aes_gcm_plaintext[] = {
         0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
         0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
 };
-static const uint8_t ae_data_aes_gcm_vect2_ctx[] = {
+static const uint8_t aes_gcm_ciphertext[] = {
         0x03, 0x88, 0xda, 0xce, 0x60, 0xb6, 0xa3, 0x92,
         0xf3, 0x28, 0xc2, 0xb9, 0x71, 0xb2, 0xfe, 0x78
 };
-static const uint8_t ae_data_aes_gcm_vect2_tag[] = {
+static const uint8_t aes_gcm_tag[] = {
         0xab, 0x6e, 0x47, 0xd4, 0x2c, 0xec, 0x13, 0xbd,
         0xf5, 0x3a, 0x67, 0xb2, 0x12, 0x57, 0xbd, 0xdf
 };
@@ -133,10 +133,10 @@ static TEE_Result aes_gcm_encrypt(uint32_t param_types,
 	TEE_OperationHandle operation = { 0 };
 	TEE_ObjectHandle object = TEE_HANDLE_NULL;
 
-	uint8_t dest_data[sizeof(ae_data_aes_gcm_vect2_ctx)] = {};
+	uint8_t dest_data[sizeof(aes_gcm_ciphertext)] = {};
 	uint32_t dest_data_len = sizeof(dest_data);
 
-	uint8_t tag[sizeof(ae_data_aes_gcm_vect2_tag)] = {};
+	uint8_t tag[sizeof(aes_gcm_tag)] = {};
 	uint32_t tag_len = sizeof(tag);
 
 	uint32_t algo = TEE_ALG_AES_GCM;
@@ -169,8 +169,8 @@ static TEE_Result aes_gcm_encrypt(uint32_t param_types,
 	}
 
 	attrs.attributeID = TEE_ATTR_SECRET_VALUE;
-	attrs.content.ref.buffer = (void *)ae_data_aes_gcm_vect2_key;
-	attrs.content.ref.length = sizeof(ae_data_aes_gcm_vect2_key);
+	attrs.content.ref.buffer = (void *)aes_gcm_key;
+	attrs.content.ref.length = sizeof(aes_gcm_key);
 
 	res = TEE_PopulateTransientObject(object, &attrs, 1);
 	if (res != TEE_SUCCESS) {
@@ -185,9 +185,9 @@ static TEE_Result aes_gcm_encrypt(uint32_t param_types,
 	}
 
 	res = TEE_AEInit(operation,
-			 ae_data_aes_gcm_vect2_nonce,
-			 sizeof(ae_data_aes_gcm_vect2_nonce),
-			 sizeof(ae_data_aes_gcm_vect2_tag) * 8,
+			 aes_gcm_nonce,
+			 sizeof(aes_gcm_nonce),
+			 sizeof(aes_gcm_tag) * 8,
 			 0,
 			 0);
 	if (res != TEE_SUCCESS) {
@@ -196,7 +196,7 @@ static TEE_Result aes_gcm_encrypt(uint32_t param_types,
 	}
 
 	res = TEE_AEEncryptFinal(operation,
-				 ae_data_aes_gcm_vect2_ptx, sizeof(ae_data_aes_gcm_vect2_ptx),
+				 aes_gcm_plaintext, sizeof(aes_gcm_plaintext),
 				 dest_data, &dest_data_len,
 				 tag, &tag_len);
 
@@ -207,12 +207,12 @@ err:
 	if (object)
 		TEE_FreeTransientObject(object);
 
-	if (TEE_MemCompare(dest_data, ae_data_aes_gcm_vect2_ctx, dest_data_len) != 0) {
+	if (TEE_MemCompare(dest_data, aes_gcm_ciphertext, dest_data_len) != 0) {
 		EMSG("Generated ciphertext not as expected");
 		res = TEE_ERROR_GENERIC;
 	}
 
-	if (TEE_MemCompare(tag, ae_data_aes_gcm_vect2_tag, tag_len) != 0) {
+	if (TEE_MemCompare(tag, aes_gcm_tag, tag_len) != 0) {
 		EMSG("Generated tag not as expected");
 		res = TEE_ERROR_GENERIC;
 	} else
