@@ -84,28 +84,144 @@ void TA_CloseSessionEntryPoint(void __maybe_unused *sess_ctx)
 	DMSG("AES-GCM TA session closed\n");
 }
 
-static TEE_Result inc_value(uint32_t param_types,
-			    TEE_Param params[4])
+/*
+ * Same test vector as used in xtest, originally it comes from:
+ *   http://luca-giuzzi.unibs.it/corsi/Support/papers-cryptography/gcm-spec.pdf
+ *
+ * Test case 2
+ *              K 00000000000000000000000000000000
+ *              P 00000000000000000000000000000000
+ *             IV 000000000000000000000000
+ *              H 66e94bd4ef8a2c3b884cfa59ca342b2e
+ *             Y0 00000000000000000000000000000001
+ *       E(K, Y0) 58e2fccefa7e3061367f1d57a4e7455a
+ *             Y1 00000000000000000000000000000002
+ *       E(K, Y1) 0388dace60b6a392f328c2b971b2fe78
+ *             X1 5e2ec746917062882c85b0685353deb7
+ * len(A)||len(C) 00000000000000000000000000000080
+ *  GHASH(H, A, C) f38cbb1ad69223dcc3457ae5b6b0f885
+ *              C 0388dace60b6a392f328c2b971b2fe78
+ *              T ab6e47d42cec13bdf53a67b21257bddf
+ */
+
+static const uint8_t ae_data_aes_gcm_vect2_key[] = {
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
+};
+static const uint8_t ae_data_aes_gcm_vect2_nonce[] = {
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x00
+};
+#define ae_data_aes_gcm_vect2_aad NULL
+static const uint8_t ae_data_aes_gcm_vect2_ptx[] = {
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
+};
+static const uint8_t ae_data_aes_gcm_vect2_ctx[] = {
+        0x03, 0x88, 0xda, 0xce, 0x60, 0xb6, 0xa3, 0x92,
+        0xf3, 0x28, 0xc2, 0xb9, 0x71, 0xb2, 0xfe, 0x78
+};
+static const uint8_t ae_data_aes_gcm_vect2_tag[] = {
+        0xab, 0x6e, 0x47, 0xd4, 0x2c, 0xec, 0x13, 0xbd,
+        0xf5, 0x3a, 0x67, 0xb2, 0x12, 0x57, 0xbd, 0xdf
+};
+
+static TEE_Result aes_gcm_encrypt(uint32_t param_types,
+				  TEE_Param params[4])
 {
+	TEE_Result res = TEE_ERROR_GENERIC;
+	TEE_OperationHandle operation = { 0 };
+	TEE_ObjectHandle object = TEE_HANDLE_NULL;
+
+	uint8_t dest_data[sizeof(ae_data_aes_gcm_vect2_ctx)] = {};
+	uint32_t dest_data_len = sizeof(dest_data);
+
+	uint8_t tag[sizeof(ae_data_aes_gcm_vect2_tag)] = {};
+	uint32_t tag_len = sizeof(tag);
+
+	uint32_t algo = TEE_ALG_AES_GCM;
+	uint32_t mode = TEE_MODE_ENCRYPT;
+	/* 256 bits key */
+	uint32_t key_size = 32 * 8;
+	uint32_t op_keysize = key_size;
+
+	TEE_Attribute attrs = {};
+
 	uint32_t exp_param_types = TEE_PARAM_TYPES(TEE_PARAM_TYPE_VALUE_INOUT,
 						   TEE_PARAM_TYPE_NONE,
 						   TEE_PARAM_TYPE_NONE,
 						   TEE_PARAM_TYPE_NONE);
-
 	DMSG("AES-GCM TA has been called");
 
 	if (param_types != exp_param_types)
 		return TEE_ERROR_BAD_PARAMETERS;
 
-	DMSG("Got value: %u from Normal World", params[0].value.a);
+	res = TEE_AllocateOperation(&operation, algo, mode, op_keysize);
+	if (res != TEE_SUCCESS) {
+		EMSG("Failed calling TEE_AllocateOperation");
+		return res;
+	}
 
-	params[0].value.a++;
-	DMSG("Increased value to: %u", params[0].value.a);
+	res = TEE_AllocateTransientObject(TEE_TYPE_AES, key_size, &object);
+	if (res != TEE_SUCCESS) {
+		EMSG("Failed calling TEE_AllocateTransientObject");
+		goto err;
+	}
 
-	return TEE_SUCCESS;
+	attrs.attributeID = TEE_ATTR_SECRET_VALUE;
+	attrs.content.ref.buffer = (void *)ae_data_aes_gcm_vect2_key;
+	attrs.content.ref.length = sizeof(ae_data_aes_gcm_vect2_key);
+
+	res = TEE_PopulateTransientObject(object, &attrs, 1);
+	if (res != TEE_SUCCESS) {
+		EMSG("Failed calling TEE_PopulateTransientObject");
+		goto err;
+	}
+
+	res = TEE_SetOperationKey(operation, object);
+	if (res != TEE_SUCCESS) {
+		EMSG("Failed calling TEE_SetOperationKey");
+		goto err;
+	}
+
+	res = TEE_AEInit(operation,
+			 ae_data_aes_gcm_vect2_nonce,
+			 sizeof(ae_data_aes_gcm_vect2_nonce),
+			 sizeof(ae_data_aes_gcm_vect2_tag) * 8,
+			 0,
+			 0);
+	if (res != TEE_SUCCESS) {
+		EMSG("Failed calling TEE_AEInit");
+		goto err;
+	}
+
+	res = TEE_AEEncryptFinal(operation,
+				 ae_data_aes_gcm_vect2_ptx, sizeof(ae_data_aes_gcm_vect2_ptx),
+				 dest_data, &dest_data_len,
+				 tag, &tag_len);
+
+	if (res != TEE_SUCCESS)
+		EMSG("Failed calling TEE_AEEncryptFinal");
+
+err:
+	if (object)
+		TEE_FreeTransientObject(object);
+
+	if (TEE_MemCompare(dest_data, ae_data_aes_gcm_vect2_ctx, dest_data_len) != 0) {
+		EMSG("Generated ciphertext not as expected");
+		res = TEE_ERROR_GENERIC;
+	}
+
+	if (TEE_MemCompare(tag, ae_data_aes_gcm_vect2_tag, tag_len) != 0) {
+		EMSG("Generated tag not as expected");
+		res = TEE_ERROR_GENERIC;
+	} else
+		DMSG("Successfully AES-GCM encrypted buffer");
+
+	return res;
 }
 
-static TEE_Result dec_value(uint32_t param_types, TEE_Param params[4])
+static TEE_Result aes_gcm_decrypt(uint32_t param_types, TEE_Param params[4])
 {
 	uint32_t exp_param_types = TEE_PARAM_TYPES(TEE_PARAM_TYPE_VALUE_INOUT,
 						   TEE_PARAM_TYPE_NONE,
@@ -135,10 +251,10 @@ TEE_Result TA_InvokeCommandEntryPoint(void __maybe_unused *sess_ctx,
 				      TEE_Param params[4])
 {
 	switch (cmd_id) {
-	case TA_AES_GCM_CMD_INC_VALUE:
-		return inc_value(param_types, params);
-	case TA_AES_GCM_CMD_DEC_VALUE:
-		return dec_value(param_types, params);
+	case TA_AES_GCM_CMD_ENCRYPT:
+		return aes_gcm_encrypt(param_types, params);
+	case TA_AES_GCM_CMD_DECRYPT:
+		return aes_gcm_decrypt(param_types, params);
 	default:
 		return TEE_ERROR_BAD_PARAMETERS;
 	}

@@ -70,7 +70,7 @@ int main(void)
 	 */
 	printf("Invoking TA to increment %d\n", op.params[0].value.a);
 	res = TEEC_InvokeCommand(&sess,
-				 TA_AES_GCM_CMD_INC_VALUE,
+				 TA_AES_GCM_CMD_ENCRYPT,
 				 &op, &err_origin);
 
 	if (res != TEEC_SUCCESS) errx(1, "TEEC_InvokeCommand failed with code "
