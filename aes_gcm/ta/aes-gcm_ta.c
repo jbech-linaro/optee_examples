@@ -30,64 +30,14 @@
 
 #include <aes-gcm_ta.h>
 
-/*
- * Called when the instance of the TA is created. This is the first call in the
- * TA.
- */
-TEE_Result TA_CreateEntryPoint(void)
-{
-	DMSG("AES-GCM TA instance created");
-
-	return TEE_SUCCESS;
-}
-
-/*
- * Called when the instance of the TA is destroyed if the TA has not crashed or
- * panicked. This is the last call in the TA.
- */
-void TA_DestroyEntryPoint(void)
-{
-	DMSG("AES-GCM TA instance destroyed");
-}
-
-/*
- * Called when a new session is opened to the TA. *sess_ctx can be updated with
- * a value to be able to identify this session in subsequent calls to the TA.
- * In this function you will normally do the global initialization for the TA.
- */
-TEE_Result TA_OpenSessionEntryPoint(uint32_t param_types,
-				    TEE_Param __maybe_unused params[4],
-				    void __maybe_unused **sess_ctx)
-{
-	uint32_t exp_param_types = TEE_PARAM_TYPES(TEE_PARAM_TYPE_NONE,
-						   TEE_PARAM_TYPE_NONE,
-						   TEE_PARAM_TYPE_NONE,
-						   TEE_PARAM_TYPE_NONE);
-
-	DMSG("AES-GCM TA has been called");
-
-	if (param_types != exp_param_types)
-		return TEE_ERROR_BAD_PARAMETERS;
-
-	DMSG("AES-GCM TA session successfully opened\n");
-
-	/* If return value != TEE_SUCCESS the session will not be created. */
-	return TEE_SUCCESS;
-}
-
-/*
- * Called when a session is closed, sess_ctx hold the value that was assigned
- * by TA_OpenSessionEntryPoint().
- */
-void TA_CloseSessionEntryPoint(void __maybe_unused *sess_ctx)
-{
-	DMSG("AES-GCM TA session closed\n");
-}
-
-/*
- * Same test vector as used in xtest, originally it comes from:
- *   http://luca-giuzzi.unibs.it/corsi/Support/papers-cryptography/gcm-spec.pdf
+/*******************************************************************************
+ * Test data
  *
+ * It's the same test vector as used in xtest, originally it comes from:
+ *   http://luca-giuzzi.unibs.it/corsi/Support/papers-cryptography/gcm-spec.pdf
+ ******************************************************************************/
+
+/*
  * Test case 2 - No AAD
  *              K 00000000000000000000000000000000
  *              P 00000000000000000000000000000000
@@ -113,8 +63,6 @@ static const uint8_t aes_gcm_nonce[] = {
         0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
         0x00, 0x00, 0x00, 0x00
 };
-
-#define aes_gcm_aad NULL
 
 static const uint8_t aes_gcm_plaintext[] = {
         0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
@@ -212,6 +160,10 @@ static const uint8_t aes_gcm_tag_aad[] = {
 	0x56, 0x1b, 0xe1, 0x4a, 0xac, 0xa2, 0xfc, 0xcb
 };
 
+
+/*******************************************************************************
+ * Helper functions for doing en-/decryption
+ ******************************************************************************/
 static TEE_Result aes_gcm_encrypt(const uint8_t *key, const uint8_t key_len,
 				  const uint8_t *in, const uint32_t in_len,
 				  uint8_t *out, uint32_t *out_len,
@@ -261,7 +213,7 @@ static TEE_Result aes_gcm_encrypt(const uint8_t *key, const uint8_t key_len,
 		goto err;
 	}
 
-	/* 
+	/*
 	 * Start the actual AES GCM encryption, note that we multiply tag_len
 	 * with 8 to get it in bits which is what TEE_AEInit expects.
 	 */
@@ -292,6 +244,145 @@ err:
 		TEE_FreeTransientObject(object);
 
 	return res;
+}
+
+static TEE_Result aes_gcm_decrypt(const uint8_t *key, const uint8_t key_len,
+				  const uint8_t *in, const uint32_t in_len,
+				  uint8_t *out, uint32_t *out_len,
+				  const uint8_t *aad, const uint32_t aad_len,
+				  const uint8_t *nonce, const uint32_t nonce_len,
+				  const uint8_t *tag, const uint32_t tag_len)
+{
+	TEE_Attribute attrs = {};
+	TEE_ObjectHandle object = TEE_HANDLE_NULL;
+	TEE_OperationHandle operation = { 0 };
+	TEE_Result res = TEE_ERROR_GENERIC;
+	uint32_t algorithm = TEE_ALG_AES_GCM;
+	uint32_t mode = TEE_MODE_DECRYPT;
+	uint32_t obj_keysize = key_len * 8;
+	uint32_t op_keysize = obj_keysize;
+
+	/* Allocate a handle for the crypto operation. */
+	res = TEE_AllocateOperation(&operation, algorithm, mode, op_keysize);
+	if (res != TEE_SUCCESS) {
+		EMSG("Failed calling TEE_AllocateOperation");
+		return res;
+	}
+
+	/* Allocate the container for attributes. */
+	res = TEE_AllocateTransientObject(TEE_TYPE_AES, obj_keysize, &object);
+	if (res != TEE_SUCCESS) {
+		EMSG("Failed calling TEE_AllocateTransientObject");
+		goto err;
+	}
+
+	/* Set the attributes, here we set the encryption key. */
+	attrs.attributeID = TEE_ATTR_SECRET_VALUE;
+	attrs.content.ref.buffer = (void *)key;
+	attrs.content.ref.length = key_len;
+
+	/* Populate the transient object with the attributes. */
+	res = TEE_PopulateTransientObject(object, &attrs, 1);
+	if (res != TEE_SUCCESS) {
+		EMSG("Failed calling TEE_PopulateTransientObject");
+		goto err;
+	}
+
+	/* Associate an operation with the key. */
+	res = TEE_SetOperationKey(operation, object);
+	if (res != TEE_SUCCESS) {
+		EMSG("Failed calling TEE_SetOperationKey");
+		goto err;
+	}
+
+	/* 
+	 * Start the actual AES GCM decryption, note that we multiply tag_len
+	 * with 8 to get it in bits which is what TEE_AEInit expects.
+	 */
+	res = TEE_AEInit(operation, nonce, nonce_len, tag_len * 8, 0, 0);
+	if (res != TEE_SUCCESS) {
+		EMSG("Failed calling TEE_AEInit");
+		goto err;
+	}
+
+	/* If we have AAD, then use that also. */
+	if (aad && aad_len > 0)
+		TEE_AEUpdateAAD(operation, aad, aad_len);
+
+	/*
+	 * Finalize the AES-GCM operation, note that we're directly using the
+	 * "final" function. One could also split up the call by doing multiple
+	 * TEE_AEUpdate calls and the do a last final TEE_AEDecryptFinal call.
+	 */
+	res = TEE_AEDecryptFinal(operation,
+				 in, in_len,
+				 out, out_len,
+				 (void *)tag, tag_len);
+	if (res != TEE_SUCCESS)
+		EMSG("Failed calling TEE_AEDecryptFinal");
+
+err:
+	if (object)
+		TEE_FreeTransientObject(object);
+
+	return res;
+}
+
+/*******************************************************************************
+ * Main TA functions
+ ******************************************************************************/
+/*
+ * Called when the instance of the TA is created. This is the first call in the
+ * TA.
+ */
+TEE_Result TA_CreateEntryPoint(void)
+{
+	DMSG("instance created");
+
+	return TEE_SUCCESS;
+}
+
+/*
+ * Called when the instance of the TA is destroyed if the TA has not crashed or
+ * panicked. This is the last call in the TA.
+ */
+void TA_DestroyEntryPoint(void)
+{
+	DMSG("instance destroyed");
+}
+
+/*
+ * Called when a new session is opened to the TA. *sess_ctx can be updated with
+ * a value to be able to identify this session in subsequent calls to the TA.
+ * In this function you will normally do the global initialization for the TA.
+ */
+TEE_Result TA_OpenSessionEntryPoint(uint32_t param_types,
+				    TEE_Param __maybe_unused params[4],
+				    void __maybe_unused **sess_ctx)
+{
+	uint32_t exp_param_types = TEE_PARAM_TYPES(TEE_PARAM_TYPE_NONE,
+						   TEE_PARAM_TYPE_NONE,
+						   TEE_PARAM_TYPE_NONE,
+						   TEE_PARAM_TYPE_NONE);
+
+	DMSG("has been called");
+
+	if (param_types != exp_param_types)
+		return TEE_ERROR_BAD_PARAMETERS;
+
+	DMSG("session successfully opened\n");
+
+	/* If return value != TEE_SUCCESS the session will not be created. */
+	return TEE_SUCCESS;
+}
+
+/*
+ * Called when a session is closed, sess_ctx hold the value that was assigned
+ * by TA_OpenSessionEntryPoint().
+ */
+void TA_CloseSessionEntryPoint(void __maybe_unused *sess_ctx)
+{
+	DMSG("session closed\n");
 }
 
 static TEE_Result ta_aes_gcm_encrypt(uint32_t param_types,
@@ -328,7 +419,7 @@ static TEE_Result ta_aes_gcm_encrypt(uint32_t param_types,
 		EMSG("Generated tag not as expected");
 		res = TEE_ERROR_GENERIC;
 	} else
-		DMSG("Successfully AES-GCM encrypted buffer");
+		DMSG("Successfully AES-GCM encrypted the buffer");
 
 	return res;
 }
@@ -367,29 +458,40 @@ static TEE_Result ta_aes_gcm_encrypt_aad(uint32_t param_types,
 		EMSG("Generated tag not as expected");
 		res = TEE_ERROR_GENERIC;
 	} else
-		DMSG("Successfully AES-GCM (AAD) encrypted buffer");
+		DMSG("Successfully AES-GCM (AAD) encrypted the buffer");
 
 	return res;
 }
 
-static TEE_Result ta_aes_gcm_decrypt(uint32_t param_types, TEE_Param params[4])
+static TEE_Result ta_aes_gcm_decrypt(uint32_t param_types, TEE_Param params[4] __unused)
 {
+	TEE_Result res = TEE_ERROR_GENERIC;
+	uint8_t plaintext[sizeof(aes_gcm_plaintext)] = {};
+	uint32_t plaintext_len = sizeof(plaintext);
+
 	uint32_t exp_param_types = TEE_PARAM_TYPES(TEE_PARAM_TYPE_VALUE_INOUT,
 						   TEE_PARAM_TYPE_NONE,
 						   TEE_PARAM_TYPE_NONE,
 						   TEE_PARAM_TYPE_NONE);
-
-	DMSG("AES-GCM TA has been called");
+	DMSG("has been called");
 
 	if (param_types != exp_param_types)
 		return TEE_ERROR_BAD_PARAMETERS;
 
-	DMSG("Got value: %u from Normal World", params[0].value.a);
+	res = aes_gcm_decrypt(aes_gcm_key, sizeof(aes_gcm_key),
+			      aes_gcm_ciphertext, sizeof(aes_gcm_ciphertext),
+			      plaintext, &plaintext_len,
+			      NULL, 0,
+			      aes_gcm_nonce, sizeof(aes_gcm_nonce),
+			      aes_gcm_tag, sizeof(aes_gcm_tag));
 
-	params[0].value.a--;
-	IMSG("Decreased value to: %u", params[0].value.a);
+	if (TEE_MemCompare(plaintext, aes_gcm_plaintext, plaintext_len) != 0) {
+		EMSG("Plaintext is not as expected");
+		res = TEE_ERROR_GENERIC;
+	} else
+		DMSG("Successfully decrypted the AES-GCM buffer");
 
-	return TEE_SUCCESS;
+	return res;
 }
 
 static TEE_Result ta_aes_gcm_decrypt_aad(uint32_t param_types, TEE_Param
