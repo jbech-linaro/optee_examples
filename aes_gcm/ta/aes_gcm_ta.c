@@ -219,8 +219,7 @@ void TA_CloseSessionEntryPoint(void __maybe_unused *sess_ctx)
 	DMSG("session closed\n");
 }
 
-static TEE_Result ta_aes_gcm_encrypt(uint32_t param_types,
-				     TEE_Param params[4] __unused)
+static TEE_Result ta_aes_gcm_encrypt(void)
 {
 	TEE_Result res = TEE_ERROR_GENERIC;
 	uint8_t tag[sizeof(aes_gcm_tag)] = {};
@@ -228,14 +227,7 @@ static TEE_Result ta_aes_gcm_encrypt(uint32_t param_types,
 	uint8_t ciphertext[sizeof(aes_gcm_ciphertext)] = {};
 	uint32_t ciphertext_len = sizeof(ciphertext);
 
-	uint32_t exp_param_types = TEE_PARAM_TYPES(TEE_PARAM_TYPE_VALUE_INOUT,
-						   TEE_PARAM_TYPE_NONE,
-						   TEE_PARAM_TYPE_NONE,
-						   TEE_PARAM_TYPE_NONE);
 	DMSG("has been called");
-
-	if (param_types != exp_param_types)
-		return TEE_ERROR_BAD_PARAMETERS;
 
 	res = aes_gcm_encrypt(aes_gcm_key, sizeof(aes_gcm_key),
 			      aes_gcm_plaintext, sizeof(aes_gcm_plaintext),
@@ -258,8 +250,7 @@ static TEE_Result ta_aes_gcm_encrypt(uint32_t param_types,
 	return res;
 }
 
-static TEE_Result ta_aes_gcm_encrypt_aad(uint32_t param_types,
-					 TEE_Param params[4] __unused)
+static TEE_Result ta_aes_gcm_encrypt_aad(void)
 {
 	TEE_Result res = TEE_ERROR_GENERIC;
 	uint8_t tag[sizeof(aes_gcm_tag_aad)] = {};
@@ -267,14 +258,7 @@ static TEE_Result ta_aes_gcm_encrypt_aad(uint32_t param_types,
 	uint8_t ciphertext[sizeof(aes_gcm_ciphertext_aad)] = {};
 	uint32_t ciphertext_len = sizeof(ciphertext);
 
-	uint32_t exp_param_types = TEE_PARAM_TYPES(TEE_PARAM_TYPE_VALUE_INOUT,
-						   TEE_PARAM_TYPE_NONE,
-						   TEE_PARAM_TYPE_NONE,
-						   TEE_PARAM_TYPE_NONE);
 	DMSG("has been called");
-
-	if (param_types != exp_param_types)
-		return TEE_ERROR_BAD_PARAMETERS;
 
 	res = aes_gcm_encrypt(aes_gcm_key_aad, sizeof(aes_gcm_key_aad),
 			      aes_gcm_plaintext_aad, sizeof(aes_gcm_plaintext_aad),
@@ -297,20 +281,13 @@ static TEE_Result ta_aes_gcm_encrypt_aad(uint32_t param_types,
 	return res;
 }
 
-static TEE_Result ta_aes_gcm_decrypt(uint32_t param_types, TEE_Param params[4] __unused)
+static TEE_Result ta_aes_gcm_decrypt(void)
 {
 	TEE_Result res = TEE_ERROR_GENERIC;
 	uint8_t plaintext[sizeof(aes_gcm_plaintext)] = {};
 	uint32_t plaintext_len = sizeof(plaintext);
 
-	uint32_t exp_param_types = TEE_PARAM_TYPES(TEE_PARAM_TYPE_VALUE_INOUT,
-						   TEE_PARAM_TYPE_NONE,
-						   TEE_PARAM_TYPE_NONE,
-						   TEE_PARAM_TYPE_NONE);
 	DMSG("has been called");
-
-	if (param_types != exp_param_types)
-		return TEE_ERROR_BAD_PARAMETERS;
 
 	res = aes_gcm_decrypt(aes_gcm_key, sizeof(aes_gcm_key),
 			      aes_gcm_ciphertext, sizeof(aes_gcm_ciphertext),
@@ -328,21 +305,13 @@ static TEE_Result ta_aes_gcm_decrypt(uint32_t param_types, TEE_Param params[4] _
 	return res;
 }
 
-static TEE_Result ta_aes_gcm_decrypt_aad(uint32_t param_types, TEE_Param
-					 params[4] __unused)
+static TEE_Result ta_aes_gcm_decrypt_aad(void)
 {
 	TEE_Result res = TEE_ERROR_GENERIC;
 	uint8_t plaintext[sizeof(aes_gcm_plaintext_aad)] = {};
 	uint32_t plaintext_len = sizeof(plaintext);
 
-	uint32_t exp_param_types = TEE_PARAM_TYPES(TEE_PARAM_TYPE_VALUE_INOUT,
-						   TEE_PARAM_TYPE_NONE,
-						   TEE_PARAM_TYPE_NONE,
-						   TEE_PARAM_TYPE_NONE);
 	DMSG("has been called");
-
-	if (param_types != exp_param_types)
-		return TEE_ERROR_BAD_PARAMETERS;
 
 	res = aes_gcm_decrypt(aes_gcm_key_aad, sizeof(aes_gcm_key_aad),
 			      aes_gcm_ciphertext_aad, sizeof(aes_gcm_ciphertext_aad),
@@ -360,6 +329,60 @@ static TEE_Result ta_aes_gcm_decrypt_aad(uint32_t param_types, TEE_Param
 	return res;
 }
 
+static TEE_Result ta_aes_gcm_local_only(void)
+{
+	TEE_Result res = TEE_ERROR_GENERIC;
+
+	/* 1. Do AES-GCM encryption (no AAD) */
+	res = ta_aes_gcm_encrypt();
+	if (res != TEE_SUCCESS)
+		goto err;
+
+	/* 2. Do AES-GCM decryption (no AAD) */
+	res = ta_aes_gcm_decrypt();
+	if (res != TEE_SUCCESS)
+		goto err;
+
+	/* 3. Do AES-GCM encryption with AAD */
+	res = ta_aes_gcm_encrypt_aad();
+	if (res != TEE_SUCCESS)
+		goto err;
+
+	/* 4. Do AES-GCM decryption with AAD */
+	res = ta_aes_gcm_encrypt_aad();
+	if (res != TEE_SUCCESS)
+		goto err;
+err:
+	return res;
+}
+
+static TEE_Result ta_aes_gcm_encrypt_nw(uint32_t param_types,
+					TEE_Param params[TEE_NUM_PARAMS])
+{
+	TEE_Result res = TEE_ERROR_GENERIC;
+	uint8_t tag[sizeof(aes_gcm_tag)] = {};
+	uint32_t tag_len = sizeof(aes_gcm_tag);
+	uint8_t ciphertext[sizeof(aes_gcm_ciphertext)] = {};
+	uint32_t ciphertext_len = sizeof(ciphertext);
+
+	uint32_t exp_param_types = TEE_PARAM_TYPES(TEE_PARAM_TYPE_NONE,
+						   TEE_PARAM_TYPE_NONE,
+						   TEE_PARAM_TYPE_NONE,
+						   TEE_PARAM_TYPE_NONE);
+	DMSG("has been called");
+
+	if (param_types != exp_param_types)
+		return TEE_ERROR_BAD_PARAMETERS;
+
+	res = aes_gcm_encrypt(aes_gcm_key, sizeof(aes_gcm_key),
+			      aes_gcm_plaintext, sizeof(aes_gcm_plaintext),
+			      ciphertext, &ciphertext_len,
+			      NULL, 0,
+			      aes_gcm_nonce, sizeof(aes_gcm_nonce),
+			      tag, &tag_len);
+	return res;
+}
+
 /*
  * Called when a TA is invoked. sess_ctx hold that value that was assigned by
  * TA_OpenSessionEntryPoint(). The rest of the paramters comes from normal
@@ -367,20 +390,23 @@ static TEE_Result ta_aes_gcm_decrypt_aad(uint32_t param_types, TEE_Param
  */
 TEE_Result TA_InvokeCommandEntryPoint(void __maybe_unused *sess_ctx,
 				      uint32_t cmd_id, uint32_t param_types,
-				      TEE_Param params[4])
+				      TEE_Param params[TEE_NUM_PARAMS])
 {
 	switch (cmd_id) {
 	case TA_AES_GCM_CMD_ENCRYPT:
-		return ta_aes_gcm_encrypt(param_types, params);
+		return ta_aes_gcm_encrypt_nw(param_types, params);
 
 	case TA_AES_GCM_CMD_DECRYPT:
-		return ta_aes_gcm_decrypt(param_types, params);
+		return ta_aes_gcm_decrypt();
 
 	case TA_AES_GCM_CMD_ENCRYPT_AAD:
-		return ta_aes_gcm_encrypt_aad(param_types, params);
+		return ta_aes_gcm_encrypt_aad();
 
 	case TA_AES_GCM_CMD_DECRYPT_AAD:
-		return ta_aes_gcm_decrypt_aad(param_types, params);
+		return ta_aes_gcm_decrypt_aad();
+
+	case TA_AES_GCM_CMD_LOCAL_ONLY:
+		return ta_aes_gcm_local_only();
 
 	default:
 		return TEE_ERROR_BAD_PARAMETERS;
