@@ -56,34 +56,39 @@ int main(void)
 		errx(1, "TEEC_Opensession failed with code 0x%x origin 0x%x",
 		     res, err_origin);
 
-	/*
-	 * Prepare the argument. Pass a value in the first parameter, the
-	 * remaining three parameters are unused.
-	 */
 	op.paramTypes = TEEC_PARAM_TYPES(TEEC_VALUE_INOUT, TEEC_NONE,
 					 TEEC_NONE, TEEC_NONE);
 	op.params[0].value.a = 1336;
 
-	/*
-	 * TA_AES_GCM_CMD_INC_VALUE is the actual function in
-	 * the TA to be called.
-	 */
-	printf("Invoking TA to increment %d\n", op.params[0].value.a);
-	res = TEEC_InvokeCommand(&sess,
-				 TA_AES_GCM_CMD_ENCRYPT,
-				 &op, &err_origin);
+	printf("Doing AES-GCM encrypt (no AAD)\n");
+	res = TEEC_InvokeCommand(&sess, TA_AES_GCM_CMD_ENCRYPT, &op,
+				 &err_origin);
+	if (res != TEEC_SUCCESS)
+		errx(1, "TEEC_InvokeCommand failed with code 0x%x origin "
+		     "0x%x", res, err_origin);
 
-	if (res != TEEC_SUCCESS) errx(1, "TEEC_InvokeCommand failed with code "
-				      "0x%x origin 0x%x", res, err_origin);
+	printf("Doing AES-GCM decrypt (no AAD)\n");
+	res = TEEC_InvokeCommand(&sess, TA_AES_GCM_CMD_DECRYPT, &op,
+				 &err_origin);
+	if (res != TEEC_SUCCESS)
+		errx(1, "TEEC_InvokeCommand failed with code 0x%x origin "
+		     "0x%x", res, err_origin);
 
-	printf("TA incremented value to %d\n", op.params[0].value.a);
+	printf("Doing AES-GCM encrypt with AAD\n");
+	res = TEEC_InvokeCommand(&sess, TA_AES_GCM_CMD_ENCRYPT_AAD, &op,
+				 &err_origin);
+	if (res != TEEC_SUCCESS)
+		errx(1, "TEEC_InvokeCommand failed with code 0x%x origin "
+		     "0x%x", res, err_origin);
 
-	/*
-	 * We're done with the TA, close the session and destroy the context.
-	 */
+	printf("Doing AES-GCM decrypt with AAD\n");
+	res = TEEC_InvokeCommand(&sess, TA_AES_GCM_CMD_DECRYPT_AAD, &op,
+				 &err_origin);
+	if (res != TEEC_SUCCESS)
+		errx(1, "TEEC_InvokeCommand failed with code 0x%x origin "
+		     "0x%x", res, err_origin);
 
 	TEEC_CloseSession(&sess);
-
 	TEEC_FinalizeContext(&ctx);
 
 	return 0;

@@ -31,7 +31,9 @@
 	{ 0x9a8bc80b, 0xa3ff, 0x42db, { 0xb2, 0xe0, 0x80, 0xa9, 0x31, 0xc9, 0x7c, 0xe4 } }
 
 /* The function IDs implemented in this Trusted Application */
-#define TA_AES_GCM_CMD_ENCRYPT	0
-#define TA_AES_GCM_CMD_DECRYPT	1
+#define TA_AES_GCM_CMD_ENCRYPT		0
+#define TA_AES_GCM_CMD_DECRYPT		1
+#define TA_AES_GCM_CMD_ENCRYPT_AAD	2
+#define TA_AES_GCM_CMD_DECRYPT_AAD	3
 
 #endif
