@@ -32,7 +32,7 @@
 #define USER_TA_HEADER_DEFINES_H
 
 /* To get the TA UUID definition */
-#include <aes-gcm_ta.h>
+#include <aes_gcm_ta.h>
 
 #define TA_UUID		AES_GCM_TA_UUID
 
