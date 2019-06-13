@@ -126,51 +126,43 @@ static const uint8_t aes_gcm_tag[] = {
         0xf5, 0x3a, 0x67, 0xb2, 0x12, 0x57, 0xbd, 0xdf
 };
 
-static TEE_Result aes_gcm_encrypt(uint32_t param_types,
-				  TEE_Param params[4])
+static TEE_Result aes256gcm_encrypt(const uint8_t *key, const uint8_t key_len,
+				    const uint8_t *in, const uint32_t in_len,
+				    uint8_t *out, uint32_t *out_len,
+				    uint8_t *aad __unused, uint32_t *aad_len __unused,
+				    const uint8_t *nonce, const uint32_t nonce_len,
+				    uint8_t *tag, uint32_t *tag_len)
 {
 	TEE_Result res = TEE_ERROR_GENERIC;
 	TEE_OperationHandle operation = { 0 };
 	TEE_ObjectHandle object = TEE_HANDLE_NULL;
 
-	uint8_t dest_data[sizeof(aes_gcm_ciphertext)] = {};
-	uint32_t dest_data_len = sizeof(dest_data);
-
-	uint8_t tag[sizeof(aes_gcm_tag)] = {};
-	uint32_t tag_len = sizeof(tag);
-
-	uint32_t algo = TEE_ALG_AES_GCM;
+	uint32_t algorithm = TEE_ALG_AES_GCM;
 	uint32_t mode = TEE_MODE_ENCRYPT;
+
 	/* 256 bits key */
-	uint32_t key_size = 32 * 8;
-	uint32_t op_keysize = key_size;
+	uint32_t obj_max_keysize = 32 * 8;
+	uint32_t op_max_keysize = obj_max_keysize;
 
 	TEE_Attribute attrs = {};
 
-	uint32_t exp_param_types = TEE_PARAM_TYPES(TEE_PARAM_TYPE_VALUE_INOUT,
-						   TEE_PARAM_TYPE_NONE,
-						   TEE_PARAM_TYPE_NONE,
-						   TEE_PARAM_TYPE_NONE);
-	DMSG("AES-GCM TA has been called");
-
-	if (param_types != exp_param_types)
-		return TEE_ERROR_BAD_PARAMETERS;
-
-	res = TEE_AllocateOperation(&operation, algo, mode, op_keysize);
+	/* Allocate a handle for the crypto operation. */
+	res = TEE_AllocateOperation(&operation, algorithm, mode, op_max_keysize);
 	if (res != TEE_SUCCESS) {
 		EMSG("Failed calling TEE_AllocateOperation");
 		return res;
 	}
 
-	res = TEE_AllocateTransientObject(TEE_TYPE_AES, key_size, &object);
+	/* Allocate the container for attributes. */
+	res = TEE_AllocateTransientObject(TEE_TYPE_AES, obj_max_keysize, &object);
 	if (res != TEE_SUCCESS) {
 		EMSG("Failed calling TEE_AllocateTransientObject");
 		goto err;
 	}
 
 	attrs.attributeID = TEE_ATTR_SECRET_VALUE;
-	attrs.content.ref.buffer = (void *)aes_gcm_key;
-	attrs.content.ref.length = sizeof(aes_gcm_key);
+	attrs.content.ref.buffer = (void *)key;
+	attrs.content.ref.length = key_len;
 
 	res = TEE_PopulateTransientObject(object, &attrs, 1);
 	if (res != TEE_SUCCESS) {
@@ -184,10 +176,13 @@ static TEE_Result aes_gcm_encrypt(uint32_t param_types,
 		goto err;
 	}
 
+	/* 
+	 * Multiply tag_len with 8 to get it in bits which is what TEE_AEInit
+	 * expects.
+	 */
 	res = TEE_AEInit(operation,
-			 aes_gcm_nonce,
-			 sizeof(aes_gcm_nonce),
-			 sizeof(aes_gcm_tag) * 8,
+			 nonce, nonce_len,
+			 *tag_len * 8,
 			 0,
 			 0);
 	if (res != TEE_SUCCESS) {
@@ -196,9 +191,9 @@ static TEE_Result aes_gcm_encrypt(uint32_t param_types,
 	}
 
 	res = TEE_AEEncryptFinal(operation,
-				 aes_gcm_plaintext, sizeof(aes_gcm_plaintext),
-				 dest_data, &dest_data_len,
-				 tag, &tag_len);
+				 in, in_len,
+				 out, out_len,
+				 tag, tag_len);
 
 	if (res != TEE_SUCCESS)
 		EMSG("Failed calling TEE_AEEncryptFinal");
@@ -207,7 +202,35 @@ err:
 	if (object)
 		TEE_FreeTransientObject(object);
 
-	if (TEE_MemCompare(dest_data, aes_gcm_ciphertext, dest_data_len) != 0) {
+	return res;
+}
+
+static TEE_Result ta_aes_gcm_encrypt(uint32_t param_types,
+				     TEE_Param params[4] __unused)
+{
+	TEE_Result res = TEE_ERROR_GENERIC;
+	uint8_t tag[sizeof(aes_gcm_tag)] = {};
+	uint32_t tag_len = sizeof(aes_gcm_tag);
+	uint8_t ciphertext[sizeof(aes_gcm_ciphertext)] = {};
+	uint32_t ciphertext_len = sizeof(ciphertext);
+
+	uint32_t exp_param_types = TEE_PARAM_TYPES(TEE_PARAM_TYPE_VALUE_INOUT,
+						   TEE_PARAM_TYPE_NONE,
+						   TEE_PARAM_TYPE_NONE,
+						   TEE_PARAM_TYPE_NONE);
+	DMSG("AES-GCM TA has been called");
+
+	if (param_types != exp_param_types)
+		return TEE_ERROR_BAD_PARAMETERS;
+
+	res = aes256gcm_encrypt(aes_gcm_key, sizeof(aes_gcm_key),
+				aes_gcm_plaintext, sizeof(aes_gcm_plaintext),
+				ciphertext, &ciphertext_len,
+				NULL, NULL,
+				aes_gcm_nonce, sizeof(aes_gcm_nonce),
+				tag, &tag_len);
+
+	if (TEE_MemCompare(ciphertext, aes_gcm_ciphertext, ciphertext_len) != 0) {
 		EMSG("Generated ciphertext not as expected");
 		res = TEE_ERROR_GENERIC;
 	}
@@ -221,7 +244,7 @@ err:
 	return res;
 }
 
-static TEE_Result aes_gcm_decrypt(uint32_t param_types, TEE_Param params[4])
+static TEE_Result ta_aes_gcm_decrypt(uint32_t param_types, TEE_Param params[4])
 {
 	uint32_t exp_param_types = TEE_PARAM_TYPES(TEE_PARAM_TYPE_VALUE_INOUT,
 						   TEE_PARAM_TYPE_NONE,
@@ -252,9 +275,11 @@ TEE_Result TA_InvokeCommandEntryPoint(void __maybe_unused *sess_ctx,
 {
 	switch (cmd_id) {
 	case TA_AES_GCM_CMD_ENCRYPT:
-		return aes_gcm_encrypt(param_types, params);
+		return ta_aes_gcm_encrypt(param_types, params);
+
 	case TA_AES_GCM_CMD_DECRYPT:
-		return aes_gcm_decrypt(param_types, params);
+		return ta_aes_gcm_decrypt(param_types, params);
+
 	default:
 		return TEE_ERROR_BAD_PARAMETERS;
 	}
