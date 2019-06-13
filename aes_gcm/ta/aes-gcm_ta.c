@@ -133,43 +133,42 @@ static TEE_Result aes256gcm_encrypt(const uint8_t *key, const uint8_t key_len,
 				    const uint8_t *nonce, const uint32_t nonce_len,
 				    uint8_t *tag, uint32_t *tag_len)
 {
-	TEE_Result res = TEE_ERROR_GENERIC;
-	TEE_OperationHandle operation = { 0 };
+	TEE_Attribute attrs = {};
 	TEE_ObjectHandle object = TEE_HANDLE_NULL;
-
+	TEE_OperationHandle operation = { 0 };
+	TEE_Result res = TEE_ERROR_GENERIC;
 	uint32_t algorithm = TEE_ALG_AES_GCM;
 	uint32_t mode = TEE_MODE_ENCRYPT;
-
-	/* 256 bits key */
-	uint32_t obj_max_keysize = 32 * 8;
-	uint32_t op_max_keysize = obj_max_keysize;
-
-	TEE_Attribute attrs = {};
+	uint32_t obj_keysize = key_len * 8;
+	uint32_t op_keysize = obj_keysize;
 
 	/* Allocate a handle for the crypto operation. */
-	res = TEE_AllocateOperation(&operation, algorithm, mode, op_max_keysize);
+	res = TEE_AllocateOperation(&operation, algorithm, mode, op_keysize);
 	if (res != TEE_SUCCESS) {
 		EMSG("Failed calling TEE_AllocateOperation");
 		return res;
 	}
 
 	/* Allocate the container for attributes. */
-	res = TEE_AllocateTransientObject(TEE_TYPE_AES, obj_max_keysize, &object);
+	res = TEE_AllocateTransientObject(TEE_TYPE_AES, obj_keysize, &object);
 	if (res != TEE_SUCCESS) {
 		EMSG("Failed calling TEE_AllocateTransientObject");
 		goto err;
 	}
 
+	/* Set the attributes, here we set the encryption key. */
 	attrs.attributeID = TEE_ATTR_SECRET_VALUE;
 	attrs.content.ref.buffer = (void *)key;
 	attrs.content.ref.length = key_len;
 
+	/* Populate the transient object with the attributes. */
 	res = TEE_PopulateTransientObject(object, &attrs, 1);
 	if (res != TEE_SUCCESS) {
 		EMSG("Failed calling TEE_PopulateTransientObject");
 		goto err;
 	}
 
+	/* Associate an operation with the key. */
 	res = TEE_SetOperationKey(operation, object);
 	if (res != TEE_SUCCESS) {
 		EMSG("Failed calling TEE_SetOperationKey");
@@ -177,24 +176,24 @@ static TEE_Result aes256gcm_encrypt(const uint8_t *key, const uint8_t key_len,
 	}
 
 	/* 
-	 * Multiply tag_len with 8 to get it in bits which is what TEE_AEInit
-	 * expects.
+	 * Start the actual AES GCM encryption, not that we multiply tag_len
+	 * with 8 to get it in bits which is what TEE_AEInit expects.
 	 */
-	res = TEE_AEInit(operation,
-			 nonce, nonce_len,
-			 *tag_len * 8,
-			 0,
-			 0);
+	res = TEE_AEInit(operation, nonce, nonce_len, *tag_len * 8, 0, 0);
 	if (res != TEE_SUCCESS) {
 		EMSG("Failed calling TEE_AEInit");
 		goto err;
 	}
 
+	/*
+	 * Finalize the AES-GCM operation, note that we're directly using the
+	 * "final" function. One could also split up the call by doing multiple
+	 * TEE_AEUpdate calls and the do a last final TEE_AEEncryptFinal call.
+	 */
 	res = TEE_AEEncryptFinal(operation,
 				 in, in_len,
 				 out, out_len,
 				 tag, tag_len);
-
 	if (res != TEE_SUCCESS)
 		EMSG("Failed calling TEE_AEEncryptFinal");
 
@@ -218,7 +217,7 @@ static TEE_Result ta_aes_gcm_encrypt(uint32_t param_types,
 						   TEE_PARAM_TYPE_NONE,
 						   TEE_PARAM_TYPE_NONE,
 						   TEE_PARAM_TYPE_NONE);
-	DMSG("AES-GCM TA has been called");
+	DMSG("has been called");
 
 	if (param_types != exp_param_types)
 		return TEE_ERROR_BAD_PARAMETERS;
