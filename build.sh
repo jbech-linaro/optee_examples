@@ -160,5 +160,5 @@ fi;
 if [ ! -z ${SYNC} ]; then
 	echo -e "\nMount alias on device / QEMU:"
 	TA_FILE=`cd ${CURDIR}/${TARGET}/ta/ | ls *.ta`
-	echo "   alias setup_my_ta_test='mkdir -p /host && mount -t 9p -o trans=virtio host /host && cd /lib/optee_armtz && ln -sf /host/optee_examples/${TARGET}/ta/${TA_FILE} ${TA_FILE} && cd /usr/bin && ln -sf /host/optee_examples/${TARGET}/host/optee_example_${TARGET} ${TARGET}'"
+	echo "   alias setup_${TARGET}='mkdir -p /host && mount -t 9p -o trans=virtio host /host && cd /lib/optee_armtz && ln -sf /host/optee_examples/${TARGET}/ta/${TA_FILE} ${TA_FILE} && cd /usr/bin && ln -sf /host/optee_examples/${TARGET}/host/optee_example_${TARGET} ${TARGET}'"
 fi
