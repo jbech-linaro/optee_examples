@@ -33,7 +33,7 @@
 #include <tee_client_api.h>
 
 /* To the the UUID (found the the TA's h-file(s)) */
-#include <aes-gcm_ta.h>
+#include <aes_gcm_ta.h>
 
 int main(void)
 {
