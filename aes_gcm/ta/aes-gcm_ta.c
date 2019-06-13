@@ -497,17 +497,33 @@ static TEE_Result ta_aes_gcm_decrypt(uint32_t param_types, TEE_Param params[4] _
 static TEE_Result ta_aes_gcm_decrypt_aad(uint32_t param_types, TEE_Param
 					 params[4] __unused)
 {
+	TEE_Result res = TEE_ERROR_GENERIC;
+	uint8_t plaintext[sizeof(aes_gcm_plaintext_aad)] = {};
+	uint32_t plaintext_len = sizeof(plaintext);
+
 	uint32_t exp_param_types = TEE_PARAM_TYPES(TEE_PARAM_TYPE_VALUE_INOUT,
 						   TEE_PARAM_TYPE_NONE,
 						   TEE_PARAM_TYPE_NONE,
 						   TEE_PARAM_TYPE_NONE);
-
 	DMSG("has been called");
 
 	if (param_types != exp_param_types)
 		return TEE_ERROR_BAD_PARAMETERS;
 
-	return TEE_SUCCESS;
+	res = aes_gcm_decrypt(aes_gcm_key_aad, sizeof(aes_gcm_key_aad),
+			      aes_gcm_ciphertext_aad, sizeof(aes_gcm_ciphertext_aad),
+			      plaintext, &plaintext_len,
+			      aes_gcm_aad_aad, sizeof(aes_gcm_aad_aad),
+			      aes_gcm_nonce_aad, sizeof(aes_gcm_nonce_aad),
+			      aes_gcm_tag_aad, sizeof(aes_gcm_tag_aad));
+
+	if (TEE_MemCompare(plaintext, aes_gcm_plaintext_aad, plaintext_len) != 0) {
+		EMSG("Generated plaintext not as expected");
+		res = TEE_ERROR_GENERIC;
+	} else
+		DMSG("Successfully decrypted the AES-GCM (AAD) buffer");
+
+	return res;
 }
 
 /*
