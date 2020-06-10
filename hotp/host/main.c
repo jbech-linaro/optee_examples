@@ -56,6 +56,8 @@ int main(int argc, char *argv[])
 	struct timespec start, stop;
 	double accum, min = DBL_MAX, max = 0, avg = 0;
 	int min_pos = 0, max_pos = 0;
+	int i = 0;
+	FILE *fptr = NULL;
 
 #if 0
 	uint8_t correct[] = {
@@ -114,40 +116,49 @@ int main(int argc, char *argv[])
 
 	op.params[0].tmpref.buffer = correct;
 	op.params[0].tmpref.size = sizeof(correct);
-	for (int k = 0; k < 10000; k++) {
-		clock_gettime( CLOCK_REALTIME, &start);
-		res = TEEC_InvokeCommand(&sess, TA_HOTP_CMD_GET_HOTP, &op,
-					 &err_origin);
-		clock_gettime( CLOCK_REALTIME, &stop);
-		accum = ( stop.tv_sec - start.tv_sec ) + ( stop.tv_nsec - start.tv_nsec );
-		if (accum < 900000 || accum > 2000000)
-			continue;
+	fptr = fopen("/host/hmac_timing_attack_01.txt", "w");
+	for (i = 0; i < 256; i++) {
+		correct[0] = i;
+		for (int k = 0; k < 10000; k++) {
+			clock_gettime( CLOCK_REALTIME, &start);
+			res = TEEC_InvokeCommand(&sess, TA_HOTP_CMD_GET_HOTP, &op,
+						 &err_origin);
+			clock_gettime( CLOCK_REALTIME, &stop);
+			accum = ( stop.tv_sec - start.tv_sec ) + ( stop.tv_nsec - start.tv_nsec );
+			if (accum < 500000 || accum > 10000000)
+				continue;
 
-		if (accum < min) {
-			min = accum;
-			min_pos = k;
-		}
+			if (accum < min) {
+				min = accum;
+				min_pos = k;
+			}
 
-		if (accum > max) {
-			max = accum;
-			max_pos = k;
-		}
+			if (accum > max) {
+				max = accum;
+				max_pos = k;
+			}
 
-		roll_avg(&avg, accum, 500);
-		
-		fprintf(stdout, "cur: %lf, min: %lf, max: %lf, avg: %lf\n", accum, min, max, avg);
+			roll_avg(&avg, accum, 500);
+
+			// fprintf(stdout, "cur: %lf, min: %lf, max: %lf, avg: %lf\n", accum, min, max, avg);
 #if 0
-		if (res != TEEC_SUCCESS) {
-			fprintf(stderr, "TEEC_InvokeCommand failed with code "
-				"0x%x origin 0x%x\n", res, err_origin);
-			goto exit;
-		}
+			if (res != TEEC_SUCCESS) {
+				fprintf(stderr, "TEEC_InvokeCommand failed with code "
+					"0x%x origin 0x%x\n", res, err_origin);
+				goto exit;
+			}
 #endif
+		}
+		//fprintf(stdout, "i: %d --> cur: %lf, min[%d]: ---, max[%d] ---, avg: %lf\n", i, accum, min_pos, max_pos, avg);
+		//fprintf(stdout, "%d; %x; %lf\n", i, i, avg);
+		fprintf(stdout, "%d; %x; %lf\n", i, i, avg);
+		fprintf(fptr, "%d; %x; %lf\n", i, i, avg);
+		avg = 0;
 	}
-	fprintf(stdout, "cur: %lf, min[%d]: ---, max[%d] ---, avg: %lf\n", accum, min_pos, max_pos, avg);
 exit:
 	TEEC_CloseSession(&sess);
 	TEEC_FinalizeContext(&ctx);
+	fclose(fptr);
 
 	return 0;
 }
